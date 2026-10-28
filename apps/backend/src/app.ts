@@ -20,16 +20,22 @@ import { healthRouter } from "./modules/health/health.routes.js";
 import type { SocietiesRepository } from "./modules/societies/societies.repository.js";
 import { societiesRouter } from "./modules/societies/societies.routes.js";
 import { createSocietiesService } from "./modules/societies/societies.service.js";
+import type { UsersRepository } from "./modules/users/users.repository.js";
+import { usersRouter } from "./modules/users/users.routes.js";
+import { createUsersService } from "./modules/users/users.service.js";
+import type { EmailSender } from "./providers/email.provider.js";
 
 export interface Repositories {
   auth: AuthRepository;
   societies: SocietiesRepository;
+  users: UsersRepository;
 }
 
 export interface AppDeps {
   config: AppConfig;
   logger: Logger;
   repositories: Repositories;
+  emailSender: EmailSender;
   passwordHasher: PasswordHasher;
   clock?: Clock;
 }
@@ -38,7 +44,7 @@ export interface AppDeps {
  * Builds the Express app without binding a port, so Supertest can use it directly.
  * Repositories and providers are injected: production passes Drizzle/SMTP, tests pass in-memory fakes.
  */
-export function createApp({ config, logger, repositories, passwordHasher, clock = systemClock }: AppDeps): Express {
+export function createApp({ config, logger, repositories, emailSender, passwordHasher, clock = systemClock }: AppDeps): Express {
   const app = express();
 
   app.use(requestId());
@@ -70,6 +76,13 @@ export function createApp({ config, logger, repositories, passwordHasher, clock 
   app.use(
     "/api/societies",
     societiesRouter({ service: createSocietiesService({ repository: repositories.societies }), requireAuth: authenticated }),
+  );
+  app.use(
+    "/api/admin/users",
+    usersRouter({
+      service: createUsersService({ repository: repositories.users, emailSender, logger, clock, appUrl: config.appUrl }),
+      requireAuth: authenticated,
+    }),
   );
 
   app.use(notFound);

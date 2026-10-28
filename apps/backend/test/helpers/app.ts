@@ -3,7 +3,13 @@ import { createApp } from "../../src/app.js";
 import type { AppConfig } from "../../src/config/env.js";
 import type { Logger } from "../../src/lib/logger.js";
 import { fastPasswordHasher } from "./factories.js";
-import { createFakeAuthRepository, createFakeSocietiesRepository, InMemoryStore } from "./fakes.js";
+import {
+  createFakeAuthRepository,
+  createFakeSocietiesRepository,
+  createFakeUsersRepository,
+  FakeEmailSender,
+  InMemoryStore,
+} from "./fakes.js";
 
 export const testConfig: AppConfig = {
   nodeEnv: "test",
@@ -41,12 +47,18 @@ export function createTestApp(overrides: Partial<AppConfig> = {}) {
   const logger = createFakeLogger();
   const store = new InMemoryStore();
   const clock = createTestClock();
+  const emailSender = new FakeEmailSender();
   const app = createApp({
     config: { ...testConfig, ...overrides },
     logger,
-    repositories: { auth: createFakeAuthRepository(store), societies: createFakeSocietiesRepository(store) },
+    repositories: {
+      auth: createFakeAuthRepository(store),
+      societies: createFakeSocietiesRepository(store),
+      users: createFakeUsersRepository(store),
+    },
+    emailSender,
     passwordHasher: fastPasswordHasher,
     clock: () => clock.now,
   });
-  return { app, logger, store, clock };
+  return { app, logger, store, clock, emailSender };
 }
