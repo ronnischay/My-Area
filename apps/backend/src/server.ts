@@ -5,6 +5,7 @@ import { createDatabase } from "./db/client.js";
 import { createLogger } from "./lib/logger.js";
 import { createPasswordHasher } from "./lib/password.js";
 import { createAuthRepository } from "./modules/auth/auth.repository.js";
+import { createSocietiesRepository } from "./modules/societies/societies.repository.js";
 
 // The only file that binds a port. Loads apps/backend/.env when present (real env vars take precedence).
 if (existsSync(".env")) process.loadEnvFile(".env");
@@ -25,7 +26,7 @@ const { db, pool } = createDatabase(config.databaseUrl);
 const app = createApp({
   config,
   logger,
-  repositories: { auth: createAuthRepository(db) },
+  repositories: { auth: createAuthRepository(db), societies: createSocietiesRepository(db) },
   passwordHasher: createPasswordHasher(),
 });
 

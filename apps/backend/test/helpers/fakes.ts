@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AuthRepository } from "../../src/modules/auth/auth.repository.js";
+import type { SocietiesRepository } from "../../src/modules/societies/societies.repository.js";
 import type { UserRole, UserStatus } from "../../src/modules/users/users.types.js";
 
 /**
@@ -113,6 +114,27 @@ export function createFakeAuthRepository(store: InMemoryStore): AuthRepository {
       store.invites.delete(user.id);
       store.sessions.set(session.tokenHash, { userId: user.id, ...session });
       return user.id;
+    },
+  };
+}
+
+export function createFakeSocietiesRepository(store: InMemoryStore): SocietiesRepository {
+  return {
+    async createForAdmin(adminId, input) {
+      const admin = store.users.get(adminId);
+      if (!admin) throw new Error("admin not found");
+      if (admin.societyId) return "ALREADY_EXISTS";
+      const society: SocietyRow = { id: store.newId(), ...input, createdAt: store.nextCreatedAt() };
+      store.societies.set(society.id, society);
+      admin.societyId = society.id;
+      return { ...society };
+    },
+
+    async update(societyId, patch) {
+      const society = store.societies.get(societyId);
+      if (!society) return null;
+      Object.assign(society, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)));
+      return { ...society };
     },
   };
 }

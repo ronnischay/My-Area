@@ -17,9 +17,13 @@ import { authRouter } from "./modules/auth/auth.routes.js";
 import { createAuthService } from "./modules/auth/auth.service.js";
 import { createLoginRateLimiter } from "./modules/auth/login-rate-limiter.js";
 import { healthRouter } from "./modules/health/health.routes.js";
+import type { SocietiesRepository } from "./modules/societies/societies.repository.js";
+import { societiesRouter } from "./modules/societies/societies.routes.js";
+import { createSocietiesService } from "./modules/societies/societies.service.js";
 
 export interface Repositories {
   auth: AuthRepository;
+  societies: SocietiesRepository;
 }
 
 export interface AppDeps {
@@ -62,6 +66,10 @@ export function createApp({ config, logger, repositories, passwordHasher, clock 
   app.use(
     "/api/auth",
     authRouter({ service: authService, requireAuth: authenticated, secureCookies: config.nodeEnv === "production" }),
+  );
+  app.use(
+    "/api/societies",
+    societiesRouter({ service: createSocietiesService({ repository: repositories.societies }), requireAuth: authenticated }),
   );
 
   app.use(notFound);
