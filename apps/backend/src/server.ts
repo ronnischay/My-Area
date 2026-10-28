@@ -1,7 +1,10 @@
 import { existsSync } from "node:fs";
 import { createApp } from "./app.js";
 import { ConfigError, loadConfig } from "./config/env.js";
+import { createDatabase } from "./db/client.js";
 import { createLogger } from "./lib/logger.js";
+import { createPasswordHasher } from "./lib/password.js";
+import { createAuthRepository } from "./modules/auth/auth.repository.js";
 
 // The only file that binds a port. Loads apps/backend/.env when present (real env vars take precedence).
 if (existsSync(".env")) process.loadEnvFile(".env");
@@ -18,7 +21,13 @@ try {
 }
 
 const logger = createLogger({ level: config.logLevel });
-const app = createApp({ config, logger });
+const { db, pool } = createDatabase(config.databaseUrl);
+const app = createApp({
+  config,
+  logger,
+  repositories: { auth: createAuthRepository(db) },
+  passwordHasher: createPasswordHasher(),
+});
 
 const server = app.listen(config.port, () => {
   logger.info("backend listening", { port: config.port, nodeEnv: config.nodeEnv });
@@ -26,7 +35,9 @@ const server = app.listen(config.port, () => {
 
 function shutdown(signal: string) {
   logger.info("shutting down", { signal });
-  server.close(() => process.exit(0));
+  server.close(() => {
+    pool.end().finally(() => process.exit(0));
+  });
   setTimeout(() => process.exit(1), 10_000).unref();
 }
 

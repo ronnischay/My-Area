@@ -2,6 +2,8 @@ import { vi } from "vitest";
 import { createApp } from "../../src/app.js";
 import type { AppConfig } from "../../src/config/env.js";
 import type { Logger } from "../../src/lib/logger.js";
+import { fastPasswordHasher } from "./factories.js";
+import { createFakeAuthRepository, InMemoryStore } from "./fakes.js";
 
 export const testConfig: AppConfig = {
   nodeEnv: "test",
@@ -24,8 +26,27 @@ export function createFakeLogger() {
   } satisfies Logger;
 }
 
+/** A clock tests can move: `clock.now` is what the app sees as the current time. */
+export function createTestClock(start = new Date("2026-10-28T10:00:00.000Z")) {
+  const clock = {
+    now: start,
+    advance(ms: number) {
+      clock.now = new Date(clock.now.getTime() + ms);
+    },
+  };
+  return clock;
+}
+
 export function createTestApp(overrides: Partial<AppConfig> = {}) {
   const logger = createFakeLogger();
-  const app = createApp({ config: { ...testConfig, ...overrides }, logger });
-  return { app, logger };
+  const store = new InMemoryStore();
+  const clock = createTestClock();
+  const app = createApp({
+    config: { ...testConfig, ...overrides },
+    logger,
+    repositories: { auth: createFakeAuthRepository(store) },
+    passwordHasher: fastPasswordHasher,
+    clock: () => clock.now,
+  });
+  return { app, logger, store, clock };
 }

@@ -2,23 +2,39 @@ import cors from "cors";
 import express, { type Express } from "express";
 import helmet from "helmet";
 import type { AppConfig } from "./config/env.js";
+import { type Clock, systemClock } from "./lib/clock.js";
 import type { Logger } from "./lib/logger.js";
+import type { PasswordHasher } from "./lib/password.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { notFound } from "./middleware/not-found.js";
+import { requireAuth } from "./middleware/require-auth.js";
+import { requireSameOrigin } from "./middleware/require-same-origin.js";
 import { requestId } from "./middleware/request-id.js";
 import { requestLogger } from "./middleware/request-logger.js";
+import { LOGIN_MAX_FAILURES, LOGIN_WINDOW_MS } from "./modules/auth/auth.constants.js";
+import type { AuthRepository } from "./modules/auth/auth.repository.js";
+import { authRouter } from "./modules/auth/auth.routes.js";
+import { createAuthService } from "./modules/auth/auth.service.js";
+import { createLoginRateLimiter } from "./modules/auth/login-rate-limiter.js";
 import { healthRouter } from "./modules/health/health.routes.js";
+
+export interface Repositories {
+  auth: AuthRepository;
+}
 
 export interface AppDeps {
   config: AppConfig;
   logger: Logger;
+  repositories: Repositories;
+  passwordHasher: PasswordHasher;
+  clock?: Clock;
 }
 
 /**
  * Builds the Express app without binding a port, so Supertest can use it directly.
- * Dependencies (config, logger, later repositories and providers) are injected for testability.
+ * Repositories and providers are injected: production passes Drizzle/SMTP, tests pass in-memory fakes.
  */
-export function createApp({ config, logger }: AppDeps): Express {
+export function createApp({ config, logger, repositories, passwordHasher, clock = systemClock }: AppDeps): Express {
   const app = express();
 
   app.use(requestId());
@@ -27,12 +43,26 @@ export function createApp({ config, logger }: AppDeps): Express {
   app.use(
     cors({
       origin: config.frontendOrigins,
+      credentials: true,
       exposedHeaders: ["X-Request-Id"],
     }),
   );
   app.use(express.json({ limit: "100kb" }));
+  app.use(requireSameOrigin(config.frontendOrigins));
+
+  const authService = createAuthService({
+    repository: repositories.auth,
+    passwordHasher,
+    rateLimiter: createLoginRateLimiter({ maxFailures: LOGIN_MAX_FAILURES, windowMs: LOGIN_WINDOW_MS }),
+    clock,
+  });
+  const authenticated = requireAuth(authService.resolveSession);
 
   app.use(healthRouter());
+  app.use(
+    "/api/auth",
+    authRouter({ service: authService, requireAuth: authenticated, secureCookies: config.nodeEnv === "production" }),
+  );
 
   app.use(notFound);
   app.use(errorHandler(logger));
