@@ -22,7 +22,7 @@ Implement **MyArea**, a four-day neighbourhood issue-reporting MVP using a **Nex
 6. Stop. Do not implement the MVP in one pass.
 
 ## Product objective
-Residents submit a neighbourhood issue with a title, description, category, human-readable location and a photo. The report is saved in PostgreSQL. After it is saved, one shared issue-management inbox gets an email. Managers review reports, update status and may upload resolution evidence. AI suggestions and community voting are stretch goals.
+A society **admin** (created by CLI) sets up their residential society and invites **residents** and **managers** by email. Everyone signs in. Residents submit a neighbourhood issue with a title, description, category, human-readable location and a photo. The report is saved in PostgreSQL, scoped to their society. After it is saved, one shared issue-management inbox gets an email. Managers review their society's reports, update status and may upload resolution evidence. The UI uses the "Courtyard" design with a light default theme and a dark-mode toggle. AI suggestions and community voting are stretch goals.
 
 ## Fixed decisions (see `docs/DECISIONS.md`)
 - Monorepo: npm Workspaces (`apps/frontend`, `apps/backend`), no Turborepo, **no shared `packages/` workspace yet**. `docs/API_CONTRACT.md` is the contract and the frontend mirrors types in `src/types/api.ts`.
@@ -35,8 +35,8 @@ Residents submit a neighbourhood issue with a title, description, category, huma
 - No map or map SDK.
 - Never expose database, Cloudinary, AI or email secrets via `NEXT_PUBLIC_` variables.
 - No live email, media or AI provider calls in tests. Mock the provider interfaces.
-- Manager endpoints need authorization to be production-ready. If auth is deferred for a demo, isolate it and document the limitation.
-- Responsive (mobile-first) and accessible (WCAG 2.2 AA) UI is a requirement, not polish.
+- Auth (D014): email + password, DB sessions in an httpOnly cookie, roles `ADMIN`/`MANAGER`/`RESIDENT`, invite-only membership, one society per user. **Every report/member query is scoped to the session's `society_id`; never trust a society id from the client.** Auth comes first (Phase 2).
+- Responsive (mobile-first) and accessible (WCAG 2.2 AA) UI is a requirement, not polish, in **both light (default) and dark themes** (D018 Courtyard, D019).
 
 ## Database rules (Drizzle)
 - Schema lives in `apps/backend/src/db/schema/*.ts`. Migrations are generated into `apps/backend/drizzle/` and committed.

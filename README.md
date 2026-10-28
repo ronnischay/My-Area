@@ -1,8 +1,8 @@
 # MyArea
 
-Residents report neighbourhood problems (a photo, category and human-readable location). An issue-management team reviews and resolves them. This is a four-day MVP built as an npm Workspaces monorepo: **Next.js** frontend, **Express** backend and **PostgreSQL via Drizzle ORM**.
+A society admin sets up their residential society and invites residents and managers. Members sign in, report neighbourhood problems (a photo, category and human-readable location), and managers review and resolve them. This is a four-day MVP built as an npm Workspaces monorepo: **Next.js** frontend, **Express** backend and **PostgreSQL via Drizzle ORM**.
 
-> **Status:** Phase 1 complete (2026-10-28): both apps are scaffolded, with tooling, tests, the UI foundation and `GET /health`. Next is Phase 2 (database + report API). See [`docs/PROGRESS.md`](docs/PROGRESS.md).
+> **Status:** Phase 1 complete (2026-10-28): both apps are scaffolded, with tooling, tests, the UI foundation and `GET /health`. Scope updated on 2026-10-28: societies, roles and invite-only login (D014), plus the "Courtyard" design with a light default and a dark-mode toggle (D018/D019). Next is Phase 2 (database + auth, societies and members API), which needs schema approval first. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
 > Items marked *(Phase N)* don't exist yet. Everything else was verified on 2026-10-28.
 
 ## Stack
@@ -12,8 +12,10 @@ Residents report neighbourhood problems (a photo, category and human-readable lo
 | Frontend | Next.js 16 (App Router, Cache Components) · React 19 · TypeScript 5.9 · Tailwind CSS v4 |
 | Backend | Express 5 · TypeScript 5.9 (ESM) · Zod 4 · helmet · cors |
 | Database | PostgreSQL 17 · Drizzle ORM (`drizzle-orm`, `pg`) · `drizzle-kit` migrations *(Phase 2)* |
-| Media | Cloudinary (backend-only adapter) *(Phase 3)* |
-| Email | One shared inbox via Resend **or** SMTP *(Phase 4)* |
+| Auth | Email + password, DB sessions in an httpOnly cookie, roles Admin/Manager/Resident, invite-only *(Phase 2)* |
+| Media | Cloudinary (backend-only adapter) *(Phase 4)* |
+| Email | Resend **or** SMTP: invites *(Phase 2)*, new-report email to one shared inbox *(Phase 5)* |
+| Design | "Courtyard": Bricolage Grotesque + Figtree, light default + dark toggle *(Phase 6)* |
 | Tests | Vitest 5 · React Testing Library · Supertest |
 
 ## Repository layout
@@ -31,7 +33,7 @@ Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
   brew install postgresql@17 && brew services start postgresql@17
   createdb myarea_dev && createdb myarea_test
   ```
-- Cloudinary account and email provider credentials, backend only *(Phase 3/4)*.
+- Email provider credentials *(Phase 2; locally `EMAIL_PROVIDER=console` prints invite links instead)* and a Cloudinary account *(Phase 4)*, backend only.
 
 ## Setup
 ```bash
@@ -44,7 +46,7 @@ npm run dev                                               # backend http://local
 Check it's working: `curl localhost:4000/health` returns `{"status":"ok"}`, and http://localhost:3000 shows the home page.
 Both `.env` files are optional for Phase 1, because the defaults match the commands above.
 
-*(Phase 2)* `npm run db:migrate -w backend`, then optionally `npm run db:seed -w backend`.
+*(Phase 2)* `npm run db:migrate -w backend`, then create the first admin with `npm run user:create-admin -w backend -- --email you@example.com --name "Your Name"` (you'll be asked for a password). Sign in, create your society, and invite members. *(Phase 3)* `npm run db:seed -w backend` adds a demo society with users and reports.
 
 ## Scripts
 Run from the repo root.
@@ -59,6 +61,7 @@ Run from the repo root.
 | *(Phase 2)* `npm run db:generate -w backend -- --name <change>` | Generate a SQL migration from the Drizzle schema |
 | *(Phase 2)* `npm run db:migrate -w backend` | Apply migrations to `DATABASE_URL` |
 | *(Phase 2)* `npm run db:check` / `db:studio` / `db:seed` `-w backend` | Migration consistency / local DB browser / demo data |
+| *(Phase 2)* `npm run user:create-admin -w backend -- --email <e> --name "<n>"` | Create a society admin (the only way to create one) |
 | *(Phase 2)* `npm run test:integration -w backend` | Repository tests against `DATABASE_URL_TEST` |
 
 Production-style run: `npm run build` then `npm run start -w backend` and `npm run start -w frontend`.
@@ -90,5 +93,6 @@ Each app has its own committed `.env.example` with placeholders: [`apps/backend/
 
 ## Known limitations (MVP)
 - No map, geocoding or coordinates. Location is free text.
-- Anonymous resident reports. Manager auth approach is decided in Phase 6 (see `docs/DECISIONS.md` D006).
+- One society per admin and per user; members join by invite only; no forgot/change-password yet (see `docs/features/auth.md`).
+- The theme preference is saved per device, not per account.
 - Email is attempted once after save. Failures are recorded for manual retry, and there is no background worker.
