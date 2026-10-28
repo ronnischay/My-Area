@@ -8,6 +8,10 @@ export const testConfig: AppConfig = {
   port: 0,
   frontendOrigins: ["http://localhost:3000"],
   logLevel: "silent",
+  // Never connected to in unit/HTTP tests; repositories are in-memory fakes.
+  databaseUrl: "postgres://test@localhost:5432/unused",
+  appUrl: "http://localhost:3000",
+  email: { provider: "console", from: "MyArea <no-reply@test.local>" },
 };
 
 /** A logger whose methods are spies, so tests can assert on (and silence) log output. */
