@@ -7,9 +7,15 @@
 export type ApiErrorCode =
   | "VALIDATION_ERROR"
   | "UNAUTHENTICATED"
+  | "INVALID_CREDENTIALS"
   | "FORBIDDEN"
+  | "SOCIETY_REQUIRED"
   | "NOT_FOUND"
   | "INVALID_STATUS_TRANSITION"
+  | "EMAIL_TAKEN"
+  | "SOCIETY_ALREADY_EXISTS"
+  | "USER_NOT_INVITED"
+  | "INVITE_INVALID"
   | "FILE_TOO_LARGE"
   | "PAYLOAD_TOO_LARGE"
   | "UNSUPPORTED_MEDIA_TYPE"
@@ -44,4 +50,58 @@ export interface ListResponse<T> {
 
 export interface HealthResponse {
   status: "ok";
+}
+
+// --- Auth, societies and members (Phase 2) -----------------------------------
+
+export type UserRole = "ADMIN" | "MANAGER" | "RESIDENT";
+export type UserStatus = "INVITED" | "ACTIVE" | "DISABLED";
+/** Roles an admin can give when inviting or editing a member. */
+export type MemberRole = Exclude<UserRole, "ADMIN">;
+
+export interface Society {
+  id: string;
+  name: string;
+  addressText: string;
+  createdAt: string;
+}
+
+/** GET /api/auth/me, and the body of a successful login or invite acceptance. */
+export interface CurrentUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  /** null only for an ADMIN before society setup. */
+  society: Society | null;
+}
+
+/** POST /api/auth/invites/lookup */
+export interface InviteDetails {
+  name: string;
+  email: string;
+  role: UserRole;
+  societyName: string;
+  expiresAt: string;
+}
+
+/** Admin member list item (GET /api/admin/users). */
+export interface SocietyMember {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  /** Set while status is INVITED. */
+  inviteExpiresAt: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
+/** Whether the invite email went out. The member is saved either way. */
+export type InviteDelivery = "SENT" | "FAILED";
+
+export interface InviteResponse {
+  data: SocietyMember;
+  meta: { invite: InviteDelivery };
 }
