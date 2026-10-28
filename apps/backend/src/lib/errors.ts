@@ -2,9 +2,15 @@
 export type ErrorCode =
   | "VALIDATION_ERROR"
   | "UNAUTHENTICATED"
+  | "INVALID_CREDENTIALS"
   | "FORBIDDEN"
+  | "SOCIETY_REQUIRED"
   | "NOT_FOUND"
   | "INVALID_STATUS_TRANSITION"
+  | "EMAIL_TAKEN"
+  | "SOCIETY_ALREADY_EXISTS"
+  | "USER_NOT_INVITED"
+  | "INVITE_INVALID"
   | "FILE_TOO_LARGE"
   | "PAYLOAD_TOO_LARGE"
   | "UNSUPPORTED_MEDIA_TYPE"
@@ -14,7 +20,7 @@ export type ErrorCode =
 
 /**
  * An expected, client-safe error. `message` and `details` are returned to the caller as-is,
- * so never put provider responses, SQL or secrets in them.
+ * so never put provider responses, SQL or secrets in them. `headers` are set on the error response.
  */
 export class AppError extends Error {
   constructor(
@@ -22,6 +28,7 @@ export class AppError extends Error {
     readonly code: ErrorCode,
     message: string,
     readonly details?: Record<string, unknown>,
+    readonly headers?: Record<string, string>,
   ) {
     super(message);
     this.name = "AppError";

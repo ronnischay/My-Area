@@ -36,6 +36,8 @@ export function errorHandler(logger: Logger): ErrorRequestHandler {
       logger.error("unhandled error", { requestId: req.requestId, err });
     }
 
+    if (appError?.headers) res.set(appError.headers);
+
     const status = appError?.status ?? 500;
     const body: ErrorBody = {
       error: {
