@@ -1,0 +1,30 @@
+# OS / editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Dependencies
+node_modules/
+
+# Env — only the example is committed
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Tests
+coverage/
+
+# Logs
+npm-debug.log*
+*.log
+
+# docs
+docs
