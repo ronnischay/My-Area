@@ -2,7 +2,7 @@
 
 A society admin sets up their residential society and invites residents and managers. Members sign in, report neighbourhood problems (a photo, category and human-readable location), and managers review and resolve them. This is a four-day MVP built as an npm Workspaces monorepo: **Next.js** frontend, **Express** backend and **PostgreSQL via Drizzle ORM**.
 
-> **Status:** Phase 1 complete (2026-10-28): both apps are scaffolded, with tooling, tests, the UI foundation and `GET /health`. Scope updated on 2026-10-28: societies, roles and invite-only login (D014), plus the "Courtyard" design with a light default and a dark-mode toggle (D018/D019). Next is Phase 2 (database + auth, societies and members API), which needs schema approval first. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
+> **Status:** Phase 2 complete (2026-10-28): PostgreSQL + Drizzle, login/sessions, invite-only membership, society setup and member management (backend API, tested). Next is Phase 3 (society-scoped reports API). The UI ("Courtyard" design, light default + dark toggle) comes in Phase 6. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
 > Items marked *(Phase N)* don't exist yet. Everything else was verified on 2026-10-28.
 
 ## Stack
@@ -11,10 +11,10 @@ A society admin sets up their residential society and invites residents and mana
 | Monorepo | npm Workspaces (`apps/frontend`, `apps/backend`), no Turborepo, no shared package yet |
 | Frontend | Next.js 16 (App Router, Cache Components) · React 19 · TypeScript 5.9 · Tailwind CSS v4 |
 | Backend | Express 5 · TypeScript 5.9 (ESM) · Zod 4 · helmet · cors |
-| Database | PostgreSQL 17 · Drizzle ORM (`drizzle-orm`, `pg`) · `drizzle-kit` migrations *(Phase 2)* |
-| Auth | Email + password, DB sessions in an httpOnly cookie, roles Admin/Manager/Resident, invite-only *(Phase 2)* |
+| Database | PostgreSQL 17 · Drizzle ORM 0.45 (`drizzle-orm`, `pg`) · `drizzle-kit` 0.31 migrations |
+| Auth | Email + password (scrypt), DB sessions in an httpOnly cookie, roles Admin/Manager/Resident, invite-only |
 | Media | Cloudinary (backend-only adapter) *(Phase 4)* |
-| Email | Resend **or** SMTP: invites *(Phase 2)*, new-report email to one shared inbox *(Phase 5)* |
+| Email | SMTP via nodemailer (console sender for local dev): invites; new-report email to one shared inbox *(Phase 5)* |
 | Design | "Courtyard": Bricolage Grotesque + Figtree, light default + dark toggle *(Phase 6)* |
 | Tests | Vitest 5 · React Testing Library · Supertest |
 
@@ -28,25 +28,29 @@ Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Prerequisites
 - **Node.js 24** (pinned in `.nvmrc`): `nvm install 24 && nvm use`. npm 11 ships with it.
-- **PostgreSQL 17** via Homebrew *(needed from Phase 2)*:
+- **PostgreSQL 17** via Homebrew, with two databases:
   ```bash
   brew install postgresql@17 && brew services start postgresql@17
   createdb myarea_dev && createdb myarea_test
   ```
-- Email provider credentials *(Phase 2; locally `EMAIL_PROVIDER=console` prints invite links instead)* and a Cloudinary account *(Phase 4)*, backend only.
+  `myarea_dev` is your working data. `myarea_test` is only for `npm run test:integration`, which empties its tables on every run.
+- SMTP credentials for real email (optional locally: `EMAIL_PROVIDER=console` prints invite emails, with their links, to the backend log) and a Cloudinary account *(Phase 4)*, backend only.
 
 ## Setup
 ```bash
 nvm use                                                   # Node 24
 npm install                                               # from repo root; one lockfile for all workspaces
-cp apps/backend/.env.example apps/backend/.env            # backend config (secrets live only here)
+cp apps/backend/.env.example apps/backend/.env            # then set DATABASE_URL / DATABASE_URL_TEST (your macOS user name)
 cp apps/frontend/.env.example apps/frontend/.env.local    # NEXT_PUBLIC_API_BASE_URL
+npm run db:migrate -w backend                             # create the tables in myarea_dev
+DATABASE_URL=postgres://$USER@localhost:5432/myarea_test npm run db:migrate -w backend   # and in the test DB
+npm run user:create-admin -w backend -- --email you@example.com --name "Your Name"     # asks for a password
 npm run dev                                               # backend http://localhost:4000, frontend http://localhost:3000
 ```
 Check it's working: `curl localhost:4000/health` returns `{"status":"ok"}`, and http://localhost:3000 shows the home page.
-Both `.env` files are optional for Phase 1, because the defaults match the commands above.
+The backend refuses to start without `DATABASE_URL`. All other variables have local defaults; see `apps/backend/.env.example`.
 
-*(Phase 2)* `npm run db:migrate -w backend`, then create the first admin with `npm run user:create-admin -w backend -- --email you@example.com --name "Your Name"` (you'll be asked for a password). Sign in, create your society, and invite members. *(Phase 3)* `npm run db:seed -w backend` adds a demo society with users and reports.
+Until the UI exists (Phase 6), use the API directly: sign in with `POST /api/auth/login`, create your society with `POST /api/societies`, and invite members with `POST /api/admin/users` ([`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)). With `EMAIL_PROVIDER=console`, the invite link appears in the backend log. *(Phase 3)* `npm run db:seed -w backend` will add a demo society with users and reports.
 
 ## Scripts
 Run from the repo root.
@@ -58,18 +62,20 @@ Run from the repo root.
 | `npm run check` | **Full gate**: typecheck, lint, test and build across both workspaces |
 | `npm run test` / `typecheck` / `lint` / `build` | Each step across both workspaces |
 | `npm run <script> -w backend` or `-w frontend` | One workspace: `test`, `test:watch`, `test:coverage`, `typecheck`, `lint`, `build`, `start` |
-| *(Phase 2)* `npm run db:generate -w backend -- --name <change>` | Generate a SQL migration from the Drizzle schema |
-| *(Phase 2)* `npm run db:migrate -w backend` | Apply migrations to `DATABASE_URL` |
-| *(Phase 2)* `npm run db:check` / `db:studio` / `db:seed` `-w backend` | Migration consistency / local DB browser / demo data |
-| *(Phase 2)* `npm run user:create-admin -w backend -- --email <e> --name "<n>"` | Create a society admin (the only way to create one) |
-| *(Phase 2)* `npm run test:integration -w backend` | Repository tests against `DATABASE_URL_TEST` |
+| `npm run db:generate -w backend -- --name <change>` | Generate a SQL migration from the Drizzle schema (read the SQL before applying) |
+| `npm run db:migrate -w backend` | Apply migrations to `DATABASE_URL` |
+| `npm run db:check` / `db:studio` `-w backend` | Migration consistency / local DB browser |
+| *(Phase 3)* `npm run db:seed -w backend` | Demo data (refuses to run in production) |
+| `npm run user:create-admin -w backend -- --email <e> --name "<n>"` | Create a society admin, the only way to create one (non-interactive: set `ADMIN_PASSWORD`) |
+| `npm run test:integration -w backend` | Repository tests against `DATABASE_URL_TEST` (must be a `*_test` database) |
 
 Production-style run: `npm run build` then `npm run start -w backend` and `npm run start -w frontend`.
 
 ## Environment
 Each app has its own committed `.env.example` with placeholders: [`apps/backend/.env.example`](apps/backend/.env.example) and [`apps/frontend/.env.example`](apps/frontend/.env.example). Variables for later phases are listed commented out. What each variable does is in [`docs/ARCHITECTURE.md §7`](docs/ARCHITECTURE.md#7-environment-variables).
 
-- Secrets are **backend-only**. The frontend reads only `NEXT_PUBLIC_API_BASE_URL`, which is public and inlined at build time.
+- Secrets are **backend-only** and live in the git-ignored `apps/backend/.env` (`DATABASE_URL`, `SMTP_USER`, `SMTP_PASS`). Defaults in code are public local-dev values only. The frontend reads only `NEXT_PUBLIC_API_BASE_URL`, which is public and inlined at build time.
+- Email: `EMAIL_PROVIDER=console` (default; refused in production) or `smtp` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, plus `EMAIL_FROM` and `APP_URL` (used in invite links).
 - The backend validates its environment at startup and exits with a list of the invalid variables (names only, never values).
 
 ## Documentation
@@ -94,5 +100,6 @@ Each app has its own committed `.env.example` with placeholders: [`apps/backend/
 ## Known limitations (MVP)
 - No map, geocoding or coordinates. Location is free text.
 - One society per admin and per user; members join by invite only; no forgot/change-password yet (see `docs/features/auth.md`).
+- Login rate limiting is in memory (per process, resets on restart).
 - The theme preference is saved per device, not per account.
 - Email is attempted once after save. Failures are recorded for manual retry, and there is no background worker.
