@@ -1,11 +1,13 @@
 import { vi } from "vitest";
 import { createApp } from "../../src/app.js";
+import { createBackgroundTasks } from "../../src/lib/background-tasks.js";
 import type { AppConfig } from "../../src/config/env.js";
 import type { Logger } from "../../src/lib/logger.js";
 import { fastPasswordHasher } from "./factories.js";
 import {
   createFakeAuthRepository,
   createFakeMediaRepository,
+  createFakeNotificationsRepository,
   createFakeReportsRepository,
   createFakeSocietiesRepository,
   createFakeUsersRepository,
@@ -54,12 +56,14 @@ export function createTestApp(overrides: Partial<AppConfig> = {}) {
   const clock = createTestClock();
   const emailSender = new FakeEmailSender();
   const mediaStorage = new FakeMediaStorage();
+  const backgroundTasks = createBackgroundTasks(logger);
   const app = createApp({
     config: { ...testConfig, ...overrides },
     logger,
     repositories: {
       auth: createFakeAuthRepository(store),
       media: createFakeMediaRepository(store),
+      notifications: createFakeNotificationsRepository(store),
       reports: createFakeReportsRepository(store),
       societies: createFakeSocietiesRepository(store),
       users: createFakeUsersRepository(store),
@@ -68,6 +72,8 @@ export function createTestApp(overrides: Partial<AppConfig> = {}) {
     mediaStorage,
     passwordHasher: fastPasswordHasher,
     clock: () => clock.now,
+    backgroundTasks,
   });
-  return { app, logger, store, clock, emailSender, mediaStorage };
+  // Await `backgroundTasks.idle()` before asserting on emails sent after a response.
+  return { app, logger, store, clock, emailSender, mediaStorage, backgroundTasks };
 }

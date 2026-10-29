@@ -2,6 +2,7 @@ import cors from "cors";
 import express, { type Express } from "express";
 import helmet from "helmet";
 import type { AppConfig } from "./config/env.js";
+import { type BackgroundTasks, createBackgroundTasks } from "./lib/background-tasks.js";
 import { type Clock, systemClock } from "./lib/clock.js";
 import type { Logger } from "./lib/logger.js";
 import type { PasswordHasher } from "./lib/password.js";
@@ -19,6 +20,8 @@ import { createLoginRateLimiter } from "./modules/auth/login-rate-limiter.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import type { MediaRepository } from "./modules/media/media.repository.js";
 import { mediaRouter } from "./modules/media/media.routes.js";
+import type { NotificationsRepository } from "./modules/notifications/notifications.repository.js";
+import { createNotificationsService } from "./modules/notifications/notifications.service.js";
 import type { ReportsRepository } from "./modules/reports/reports.repository.js";
 import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { createReportsService } from "./modules/reports/reports.service.js";
@@ -34,6 +37,7 @@ import type { MediaStorage } from "./providers/media-storage.js";
 export interface Repositories {
   auth: AuthRepository;
   media: MediaRepository;
+  notifications: NotificationsRepository;
   reports: ReportsRepository;
   societies: SocietiesRepository;
   users: UsersRepository;
@@ -47,6 +51,8 @@ export interface AppDeps {
   mediaStorage: MediaStorage;
   passwordHasher: PasswordHasher;
   clock?: Clock;
+  /** Post-response work (emails). Pass one in to await it (tests, shutdown); otherwise one is created. */
+  backgroundTasks?: BackgroundTasks;
 }
 
 /**
@@ -61,6 +67,7 @@ export function createApp({
   mediaStorage,
   passwordHasher,
   clock = systemClock,
+  backgroundTasks = createBackgroundTasks(logger),
 }: AppDeps): Express {
   const app = express();
 
@@ -105,7 +112,18 @@ export function createApp({
   app.use(
     "/api/reports",
     reportsRouter({
-      service: createReportsService({ repository: repositories.reports, storage: mediaStorage, logger }),
+      service: createReportsService({
+        repository: repositories.reports,
+        storage: mediaStorage,
+        notifications: createNotificationsService({
+          repository: repositories.notifications,
+          emailSender,
+          logger,
+          appUrl: config.appUrl,
+        }),
+        backgroundTasks,
+        logger,
+      }),
       requireAuth: authenticated,
     }),
   );

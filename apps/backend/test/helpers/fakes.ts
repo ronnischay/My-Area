@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { EmailMessage, EmailSender } from "../../src/providers/email.provider.js";
 import type { AuthRepository } from "../../src/modules/auth/auth.repository.js";
 import type { MediaRepository } from "../../src/modules/media/media.repository.js";
+import type { NotificationsRepository } from "../../src/modules/notifications/notifications.repository.js";
 import type { MediaStorage } from "../../src/providers/media-storage.js";
 import type { ReportsRepository } from "../../src/modules/reports/reports.repository.js";
 import type {
@@ -402,13 +403,34 @@ export class FakeMediaStorage implements MediaStorage {
   }
 }
 
-/** Records messages instead of sending. Set `failWith` to make the next sends throw. */
+export function createFakeNotificationsRepository(store: InMemoryStore): NotificationsRepository {
+  return {
+    async findSocietyStaff(societyId) {
+      const society = store.societies.get(societyId);
+      if (!society) return null;
+      const staff = [...store.users.values()]
+        .filter((u) => u.societyId === societyId && u.status === "ACTIVE" && (u.role === "ADMIN" || u.role === "MANAGER"))
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role === "ADMIN" ? ("ADMIN" as const) : ("MANAGER" as const) }));
+      return { societyName: society.name, staff };
+    },
+  };
+}
+
+/**
+ * Records messages instead of sending. `failWith` makes every send throw; `failFor` makes sends to
+ * those addresses throw; `hang` makes sends never finish (a mail server that doesn't answer).
+ */
 export class FakeEmailSender implements EmailSender {
   sent: EmailMessage[] = [];
   failWith: Error | null = null;
+  failFor = new Set<string>();
+  hang = false;
 
   async send(message: EmailMessage) {
+    if (this.hang) return new Promise<never>(() => {});
     if (this.failWith) throw this.failWith;
+    if (this.failFor.has(message.to)) throw new Error(`550 mailbox unavailable: ${message.to}`);
     this.sent.push(message);
     return { messageId: `fake-${this.sent.length}` };
   }

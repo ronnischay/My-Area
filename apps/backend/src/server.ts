@@ -2,10 +2,12 @@ import { existsSync } from "node:fs";
 import { createApp } from "./app.js";
 import { ConfigError, loadConfig } from "./config/env.js";
 import { createDatabase } from "./db/client.js";
+import { createBackgroundTasks } from "./lib/background-tasks.js";
 import { createLogger } from "./lib/logger.js";
 import { createPasswordHasher } from "./lib/password.js";
 import { createAuthRepository } from "./modules/auth/auth.repository.js";
 import { createMediaRepository } from "./modules/media/media.repository.js";
+import { createNotificationsRepository } from "./modules/notifications/notifications.repository.js";
 import { createReportsRepository } from "./modules/reports/reports.repository.js";
 import { createSocietiesRepository } from "./modules/societies/societies.repository.js";
 import { createUsersRepository } from "./modules/users/users.repository.js";
@@ -28,12 +30,14 @@ try {
 
 const logger = createLogger({ level: config.logLevel });
 const { db, pool } = createDatabase(config.databaseUrl);
+const backgroundTasks = createBackgroundTasks(logger);
 const app = createApp({
   config,
   logger,
   repositories: {
     auth: createAuthRepository(db),
     media: createMediaRepository(db),
+    notifications: createNotificationsRepository(db),
     reports: createReportsRepository(db),
     societies: createSocietiesRepository(db),
     users: createUsersRepository(db),
@@ -41,6 +45,7 @@ const app = createApp({
   emailSender: createEmailSender(config.email, logger),
   mediaStorage: createLocalMediaStorage(config.media.uploadDir),
   passwordHasher: createPasswordHasher(),
+  backgroundTasks,
 });
 
 const server = app.listen(config.port, () => {
@@ -50,7 +55,11 @@ const server = app.listen(config.port, () => {
 function shutdown(signal: string) {
   logger.info("shutting down", { signal });
   server.close(() => {
-    pool.end().finally(() => process.exit(0));
+    // Let in-flight emails finish (they still read the DB) before closing the pool.
+    backgroundTasks
+      .idle()
+      .then(() => pool.end())
+      .finally(() => process.exit(0));
   });
   setTimeout(() => process.exit(1), 10_000).unref();
 }

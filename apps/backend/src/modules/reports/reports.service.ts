@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
+import type { BackgroundTasks } from "../../lib/background-tasks.js";
 import { AppError } from "../../lib/errors.js";
 import type { Logger } from "../../lib/logger.js";
 import type { SocietyAuthContext } from "../../middleware/require-society.js";
 import type { MediaStorage } from "../../providers/media-storage.js";
 import type { PreparedPhoto } from "../media/media.validation.js";
 import { mediaUrl } from "../media/media.urls.js";
+import type { NotificationsService } from "../notifications/notifications.service.js";
 import type { ReportsRepository } from "./reports.repository.js";
 import type { CreateReportInput, ListReportsQuery } from "./reports.schemas.js";
 import type { ReportRecord, ReportSummaryRecord } from "./reports.types.js";
@@ -18,14 +20,17 @@ export interface ReportsService {
 export interface ReportsServiceDeps {
   repository: ReportsRepository;
   storage: MediaStorage;
+  notifications: NotificationsService;
+  backgroundTasks: BackgroundTasks;
   logger: Logger;
 }
 
 /**
  * Create = store the (already checked) photo → one DB transaction for report + photo row → on DB
- * failure delete the stored file. Phase 5 adds the notification row + email (docs/ARCHITECTURE.md §6).
+ * failure delete the stored file → after commit, email the managers in the background (D022), so the
+ * resident gets the response without waiting for the mail server (docs/ARCHITECTURE.md §6).
  */
-export function createReportsService({ repository, storage, logger }: ReportsServiceDeps): ReportsService {
+export function createReportsService({ repository, storage, notifications, backgroundTasks, logger }: ReportsServiceDeps): ReportsService {
   return {
     async create(auth, input, photo) {
       const mediaId = randomUUID();
@@ -38,9 +43,10 @@ export function createReportsService({ repository, storage, logger }: ReportsSer
         throw new AppError(502, "MEDIA_UPLOAD_FAILED", "We couldn't save your photo, so nothing was submitted. Please try again.");
       }
 
+      let report: ReportRecord;
       try {
         // society_id and created_by_id come from the session, never from the request.
-        return await repository.create({
+        report = await repository.create({
           ...input,
           societyId: auth.societyId,
           createdById: auth.userId,
@@ -62,6 +68,9 @@ export function createReportsService({ repository, storage, logger }: ReportsSer
         });
         throw err;
       }
+
+      backgroundTasks.run("new-report email", () => notifications.newReport(auth.societyId, report));
+      return report;
     },
 
     list: (auth, { mine, ...query }) =>
