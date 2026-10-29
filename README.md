@@ -14,7 +14,7 @@ A society admin sets up their residential society and invites residents and mana
 | Database | PostgreSQL 17 · Drizzle ORM 0.45 (`drizzle-orm`, `pg`) · `drizzle-kit` 0.31 migrations |
 | Auth | Email + password (scrypt), DB sessions in an httpOnly cookie, roles Admin/Manager/Resident, invite-only |
 | Media | Report photos on the server's disk (`UPLOAD_DIR`), metadata stripped, served only to the society's members (multer upload) |
-| Email | SMTP via nodemailer (console sender for local dev): invites; new-report email to one shared inbox *(Phase 5)* |
+| Email | SMTP via nodemailer (console sender for local dev): invites, and a new-report email to the society's managers (admins if none), sent after the response |
 | Design | "Courtyard": Bricolage Grotesque + Figtree, light default + dark toggle *(Phase 6)* |
 | Tests | Vitest 5 · React Testing Library · Supertest |
 
@@ -108,4 +108,4 @@ Each app has its own committed `.env.example` with placeholders: [`apps/backend/
 - Login rate limiting is in memory (per process, resets on restart).
 - The theme preference is saved per device, not per account.
 - Photos live on one server's disk (no CDN, no multi-server sharing); seeded demo reports have no photo.
-- Email is attempted once after save. Failures are recorded for manual retry, and there is no background worker.
+- The new-report email is attempted once, after the response is sent. A failure is only logged (no retry, no record in the database); managers still see every report in the app.

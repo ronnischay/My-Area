@@ -22,7 +22,7 @@ Implement **MyArea**, a four-day neighbourhood issue-reporting MVP using a **Nex
 6. Stop. Do not implement the MVP in one pass.
 
 ## Product objective
-A society **admin** (created by CLI) sets up their residential society and invites **residents** and **managers** by email. Everyone signs in. Residents submit a neighbourhood issue with a title, description, category, human-readable location and a photo. The report is saved in PostgreSQL, scoped to their society. After it is saved, one shared issue-management inbox gets an email. Managers review their society's reports, update status and may upload resolution evidence. The UI uses the "Courtyard" design with a light default theme and a dark-mode toggle. AI suggestions and community voting are stretch goals.
+A society **admin** (created by CLI) sets up their residential society and invites **residents** and **managers** by email. Everyone signs in. Residents submit a neighbourhood issue with a title, description, category, human-readable location and a photo. The report is saved in PostgreSQL, scoped to their society. After it is saved, the society's managers (or its admin if there are none) get an email. Managers review their society's reports, update status and may upload resolution evidence. The UI uses the "Courtyard" design with a light default theme and a dark-mode toggle. AI suggestions and community voting are stretch goals.
 
 ## Fixed decisions (see `docs/DECISIONS.md`)
 - Monorepo: npm Workspaces (`apps/frontend`, `apps/backend`), no Turborepo, **no shared `packages/` workspace yet**. `docs/API_CONTRACT.md` is the contract and the frontend mirrors types in `src/types/api.ts`.
@@ -30,7 +30,7 @@ A society **admin** (created by CLI) sets up their residential society and invit
 - Backend: Express + TypeScript (strict), feature modules (`routes → controller → service → repository`). Do not use NestJS.
 - Database: PostgreSQL + **Drizzle ORM** (`drizzle-orm` + `pg`, `drizzle-kit` for migrations). **Not Prisma.**
 - Media: report photos on the server's disk behind a backend-only `MediaStorage` interface (D021), metadata stripped on upload, served only to the report's society via `GET /api/media/:id`. Cloudinary may replace the local adapter later.
-- Email: one recipient (`ISSUE_MANAGEMENT_EMAIL`), one provider (Resend OR Nodemailer/SMTP) behind `EmailSender`. Never invent credentials.
+- Email: SMTP (nodemailer) behind `EmailSender`; invites go to the invited member, new-report emails to the society's active managers, else admins (D022). Never invent credentials.
 - Tests: Vitest for both apps; React Testing Library for UI; Supertest for Express; a dedicated test DB for repository integration tests.
 - No map or map SDK.
 - Never expose database, media, AI or email secrets via `NEXT_PUBLIC_` variables.
