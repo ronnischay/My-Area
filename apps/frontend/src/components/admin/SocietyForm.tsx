@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { type FormEvent, useRef, useState } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +14,7 @@ type Errors = { name?: string; addressText?: string };
 
 /** Create the society (POST) or edit it (PATCH). Limits mirror docs/API_CONTRACT.md Societies. */
 export function SocietyForm({ society }: { society?: Pick<Society, "name" | "addressText"> }) {
+  const router = useRouter();
   const editing = society !== undefined;
   const [name, setName] = useState(society?.name ?? "");
   const [addressText, setAddressText] = useState(society?.addressText ?? "");
@@ -43,6 +45,7 @@ export function SocietyForm({ society }: { society?: Pick<Society, "name" | "add
       if (!editing) return reloadTo("/admin/users");
       setSaved(true);
       setPending(false);
+      router.refresh(); // the header shows the society name
     } catch (error) {
       setPending(false);
       if (error instanceof ApiError && error.code === "SOCIETY_ALREADY_EXISTS") return reloadTo("/");
