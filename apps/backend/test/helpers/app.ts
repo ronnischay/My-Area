@@ -5,6 +5,7 @@ import type { Logger } from "../../src/lib/logger.js";
 import { fastPasswordHasher } from "./factories.js";
 import {
   createFakeAuthRepository,
+  createFakeReportsRepository,
   createFakeSocietiesRepository,
   createFakeUsersRepository,
   FakeEmailSender,
@@ -53,6 +54,7 @@ export function createTestApp(overrides: Partial<AppConfig> = {}) {
     logger,
     repositories: {
       auth: createFakeAuthRepository(store),
+      reports: createFakeReportsRepository(store),
       societies: createFakeSocietiesRepository(store),
       users: createFakeUsersRepository(store),
     },

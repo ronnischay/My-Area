@@ -17,6 +17,9 @@ import { authRouter } from "./modules/auth/auth.routes.js";
 import { createAuthService } from "./modules/auth/auth.service.js";
 import { createLoginRateLimiter } from "./modules/auth/login-rate-limiter.js";
 import { healthRouter } from "./modules/health/health.routes.js";
+import type { ReportsRepository } from "./modules/reports/reports.repository.js";
+import { reportsRouter } from "./modules/reports/reports.routes.js";
+import { createReportsService } from "./modules/reports/reports.service.js";
 import type { SocietiesRepository } from "./modules/societies/societies.repository.js";
 import { societiesRouter } from "./modules/societies/societies.routes.js";
 import { createSocietiesService } from "./modules/societies/societies.service.js";
@@ -27,6 +30,7 @@ import type { EmailSender } from "./providers/email.provider.js";
 
 export interface Repositories {
   auth: AuthRepository;
+  reports: ReportsRepository;
   societies: SocietiesRepository;
   users: UsersRepository;
 }
@@ -83,6 +87,11 @@ export function createApp({ config, logger, repositories, emailSender, passwordH
       service: createUsersService({ repository: repositories.users, emailSender, logger, clock, appUrl: config.appUrl }),
       requireAuth: authenticated,
     }),
+  );
+
+  app.use(
+    "/api/reports",
+    reportsRouter({ service: createReportsService({ repository: repositories.reports }), requireAuth: authenticated }),
   );
 
   app.use(notFound);

@@ -2,7 +2,7 @@ import { createPasswordHasher } from "../../src/lib/password.js";
 import { hashToken, newToken } from "../../src/lib/tokens.js";
 import { INVITE_TTL_MS, SESSION_COOKIE, SESSION_TTL_MS } from "../../src/modules/auth/auth.constants.js";
 import type { UserRole, UserStatus } from "../../src/modules/users/users.types.js";
-import type { InMemoryStore, SocietyRow, UserRow } from "./fakes.js";
+import type { InMemoryStore, ReportMediaRow, ReportRow, SocietyRow, UserRow } from "./fakes.js";
 
 /** Real scrypt with a tiny cost so tests stay fast. Hashes are still verifiable by the default hasher. */
 export const fastPasswordHasher = createPasswordHasher({ N: 2 ** 10, r: 8, p: 1 });
@@ -64,4 +64,48 @@ export function inviteToken(store: InMemoryStore, userId: string, now: Date, ttl
   const token = newToken();
   store.invites.set(userId, { userId, tokenHash: hashToken(token), expiresAt: new Date(now.getTime() + ttlMs) });
   return token;
+}
+
+/** A report in `societyId` by `createdById`. Pass `status: "RESOLVED"` with a `resolvedAt`, like the DB check requires. */
+export function addReport(
+  store: InMemoryStore,
+  options: Pick<ReportRow, "societyId" | "createdById"> & Partial<ReportRow>,
+): ReportRow {
+  const createdAt = store.nextCreatedAt();
+  const report: ReportRow = {
+    id: store.newId(),
+    title: "Streetlight out near Block C",
+    description: "The streetlight opposite Block C gate has been off for three nights.",
+    category: "STREETLIGHTS",
+    locationText: "Block C main gate",
+    status: "OPEN",
+    resolvedAt: null,
+    createdAt,
+    updatedAt: createdAt,
+    ...options,
+  };
+  store.reports.set(report.id, report);
+  return report;
+}
+
+/** A Cloudinary-style photo row for `reportId` (Phase 4 fills these for real). */
+export function addReportMedia(
+  store: InMemoryStore,
+  options: Pick<ReportMediaRow, "reportId"> & Partial<ReportMediaRow>,
+): ReportMediaRow {
+  const id = store.newId();
+  const media: ReportMediaRow = {
+    id,
+    purpose: "SUBMISSION",
+    mediaType: "IMAGE",
+    url: `https://res.cloudinary.com/demo/image/upload/myarea/test/${id}.jpg`,
+    mimeType: "image/jpeg",
+    sizeBytes: 245_000,
+    width: 1200,
+    height: 900,
+    createdAt: store.nextCreatedAt(),
+    ...options,
+  };
+  store.reportMedia.set(media.id, media);
+  return media;
 }

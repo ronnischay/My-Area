@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { EmailMessage, EmailSender } from "../../src/providers/email.provider.js";
 import type { AuthRepository } from "../../src/modules/auth/auth.repository.js";
+import type { ReportsRepository } from "../../src/modules/reports/reports.repository.js";
+import type {
+  MediaPurpose,
+  MediaType,
+  ReportCategory,
+  ReportRecord,
+  ReportStatus,
+} from "../../src/modules/reports/reports.types.js";
 import type { SocietiesRepository } from "../../src/modules/societies/societies.repository.js";
 import type { MemberListQuery, UsersRepository } from "../../src/modules/users/users.repository.js";
 import type { MemberRecord, UserRole, UserStatus } from "../../src/modules/users/users.types.js";
@@ -36,6 +44,33 @@ export interface TokenRow {
   expiresAt: Date;
 }
 
+export interface ReportRow {
+  id: string;
+  societyId: string;
+  createdById: string;
+  title: string;
+  description: string;
+  category: ReportCategory;
+  locationText: string;
+  status: ReportStatus;
+  resolvedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ReportMediaRow {
+  id: string;
+  reportId: string;
+  purpose: MediaPurpose;
+  mediaType: MediaType;
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  createdAt: Date;
+}
+
 export class InMemoryStore {
   users = new Map<string, UserRow>();
   societies = new Map<string, SocietyRow>();
@@ -43,6 +78,10 @@ export class InMemoryStore {
   sessions = new Map<string, TokenRow>();
   /** Keyed by user id: at most one invite per user, like user_invites_user_id_uq. */
   invites = new Map<string, TokenRow>();
+  reports = new Map<string, ReportRow>();
+  reportMedia = new Map<string, ReportMediaRow>();
+  /** Set to make the next report write throw, like a lost database connection. */
+  failReportWrites: Error | null = null;
 
   private sequence = 0;
 
@@ -234,6 +273,82 @@ export function createFakeUsersRepository(store: InMemoryStore): UsersRepository
       };
       store.users.set(user.id, user);
       return { id: user.id };
+    },
+  };
+}
+
+export function createFakeReportsRepository(store: InMemoryStore): ReportsRepository {
+  const mediaOf = (reportId: string) =>
+    [...store.reportMedia.values()]
+      .filter((m) => m.reportId === reportId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+  const toRecord = (report: ReportRow): ReportRecord => {
+    const author = store.users.get(report.createdById);
+    if (!author) throw new Error("report author missing");
+    return {
+      id: report.id,
+      title: report.title,
+      description: report.description,
+      category: report.category,
+      locationText: report.locationText,
+      status: report.status,
+      resolvedAt: report.resolvedAt,
+      createdAt: report.createdAt,
+      updatedAt: report.updatedAt,
+      createdBy: { id: author.id, name: author.name },
+      media: mediaOf(report.id).map((m) => ({
+        id: m.id,
+        purpose: m.purpose,
+        mediaType: m.mediaType,
+        url: m.url,
+        mimeType: m.mimeType,
+        sizeBytes: m.sizeBytes,
+        width: m.width,
+        height: m.height,
+        createdAt: m.createdAt,
+      })),
+    };
+  };
+
+  return {
+    async create(input) {
+      if (store.failReportWrites) throw store.failReportWrites;
+      // Mirrors reports_created_by_same_society_fk.
+      if (store.users.get(input.createdById)?.societyId !== input.societyId) throw new Error("reporter not in society");
+      const createdAt = store.nextCreatedAt();
+      const report: ReportRow = { id: store.newId(), ...input, status: "OPEN", resolvedAt: null, createdAt, updatedAt: createdAt };
+      store.reports.set(report.id, report);
+      return toRecord(report);
+    },
+
+    async list(societyId, { status, category, createdById, q, sort, page, pageSize }) {
+      const needle = q?.toLowerCase();
+      const direction = sort === "oldest" ? 1 : -1;
+      const matches = [...store.reports.values()]
+        .filter((r) => r.societyId === societyId)
+        .filter((r) => !status || r.status === status)
+        .filter((r) => !category || r.category === category)
+        .filter((r) => !createdById || r.createdById === createdById)
+        .filter((r) => !needle || r.title.toLowerCase().includes(needle) || r.locationText.toLowerCase().includes(needle))
+        .sort((a, b) => direction * (a.createdAt.getTime() - b.createdAt.getTime()));
+      const start = (page - 1) * pageSize;
+      const items = matches.slice(start, start + pageSize).map((r) => ({
+        id: r.id,
+        title: r.title,
+        category: r.category,
+        locationText: r.locationText,
+        status: r.status,
+        createdById: r.createdById,
+        thumbnailUrl: mediaOf(r.id).find((m) => m.purpose === "SUBMISSION")?.url ?? null,
+        createdAt: r.createdAt,
+      }));
+      return { items, total: matches.length };
+    },
+
+    async findById(societyId, reportId) {
+      const report = store.reports.get(reportId);
+      return report && report.societyId === societyId ? toRecord(report) : null;
     },
   };
 }
