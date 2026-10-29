@@ -6,6 +6,8 @@ import { Container } from "@/components/layout/Container";
 import { RelativeTime } from "@/components/reports/RelativeTime";
 import { ReportPhoto } from "@/components/reports/ReportPhoto";
 import { StatusBadge } from "@/components/reports/StatusBadge";
+import { StatusPanel } from "@/components/reports/StatusPanel";
+import { StatusTimeline } from "@/components/reports/StatusTimeline";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { CATEGORY_LABELS } from "@/lib/reports";
@@ -29,7 +31,8 @@ export default function ReportPage({ params }: PageProps<"/reports/[id]">) {
 }
 
 async function ReportDetail({ params }: Pick<PageProps<"/reports/[id]">, "params">) {
-  await requireMember();
+  const user = await requireMember();
+  const canManage = user.role === "MANAGER" || user.role === "ADMIN";
   const { id } = await params;
   const report = await getReport(id);
   // Unknown, malformed and other societies' ids all look the same.
@@ -82,6 +85,21 @@ async function ReportDetail({ params }: Pick<PageProps<"/reports/[id]">, "params
           </h2>
           <p className="max-w-[70ch] break-words whitespace-pre-line text-fg">{report.description}</p>
         </section>
+        <section aria-labelledby="progress" className="flex flex-col gap-3">
+          <h2 id="progress" className="font-display text-xl font-bold text-fg">
+            Progress
+          </h2>
+          <StatusTimeline createdAt={report.createdAt} entries={report.statusHistory} />
+        </section>
+        {canManage && (
+          <section aria-labelledby="update-status" className="flex flex-col gap-4 rounded-panel border border-border bg-surface p-5">
+            <h2 id="update-status" className="font-display text-xl font-bold text-fg">
+              Update status
+            </h2>
+            {/* Keyed on the status so the panel resets after a change. */}
+            <StatusPanel key={report.status} reportId={report.id} status={report.status} />
+          </section>
+        )}
         {resolution.length > 0 && (
           <section aria-labelledby="resolution" className="flex flex-col gap-3">
             <h2 id="resolution" className="font-display text-xl font-bold text-fg">

@@ -138,7 +138,7 @@ export interface ReportMedia {
   createdAt: string;
 }
 
-/** Phase 7. Always an empty list before then. */
+/** One status change, oldest first in `Report.statusHistory`. Visible to every member. */
 export interface StatusHistoryEntry {
   id: string;
   fromStatus: ReportStatus;
@@ -188,6 +188,17 @@ export interface CreateReportInput {
   description: string;
   category: ReportCategory;
   locationText: string;
+}
+
+/** GET /api/management/stats (MANAGER, ADMIN). */
+export interface ManagementStats {
+  byStatus: Record<ReportStatus, number>;
+}
+
+/** PATCH /api/reports/:id/status body. */
+export interface UpdateStatusInput {
+  status: ReportStatus;
+  note?: string;
 }
 
 export interface ReportListQuery {

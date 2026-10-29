@@ -15,3 +15,4 @@ export const PlusIcon = (p: SVGProps<SVGSVGElement>) => <Icon d="M12 5v14M5 12h1
 export const UserIcon = (p: SVGProps<SVGSVGElement>) => <Icon d="M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" {...p} />;
 export const StarIcon = (p: SVGProps<SVGSVGElement>) => <Icon d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9L12 3Z" {...p} />;
 export const UsersIcon = (p: SVGProps<SVGSVGElement>) => <Icon d="M16 21a6 6 0 0 0-12 0M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm12 10a6 6 0 0 0-4-5.7M16 3.1a4 4 0 0 1 0 7.8" {...p} />;
+export const InboxIcon = (p: SVGProps<SVGSVGElement>) => <Icon d="M3 13h5l1.5 3h5L16 13h5M5 5h14l2 8v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6l2-8Z" {...p} />;

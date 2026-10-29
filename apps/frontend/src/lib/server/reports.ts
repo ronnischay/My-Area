@@ -27,6 +27,7 @@ export function toSearch(query: ReportListQuery & { page?: number }, { keepPageS
   if (query.status) params.set("status", query.status);
   if (query.category) params.set("category", query.category);
   if (query.mine) params.set("mine", "true");
+  if (query.sort === "oldest") params.set("sort", "oldest"); // newest is the default
   if (query.page && query.page > 1) params.set("page", String(query.page));
   if (keepPageSize && query.pageSize) params.set("pageSize", String(query.pageSize));
   const text = params.toString();

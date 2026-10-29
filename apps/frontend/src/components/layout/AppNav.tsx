@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { UserRole } from "@/types/api";
 import { cn } from "@/lib/cn";
-import { HomeIcon, ListIcon, PlusIcon, StarIcon, UserIcon } from "./icons";
+import { HomeIcon, InboxIcon, ListIcon, PlusIcon, StarIcon, UserIcon } from "./icons";
 
 interface NavProps {
   role: UserRole;
@@ -30,6 +30,7 @@ export function PillNav({ role, hasSociety }: NavProps) {
   const links = [
     { href: "/", label: "Home" },
     { href: "/reports", label: "Reports" },
+    ...(role === "MANAGER" || role === "ADMIN" ? [{ href: "/management", label: "Management" }] : []),
     ...(role === "ADMIN"
       ? [
           { href: "/admin/users", label: "Members" },
@@ -64,7 +65,7 @@ export function PillNav({ role, hasSociety }: NavProps) {
 }
 
 /** Below `md`: bottom tab bar with the raised Report button. Hidden on full-screen forms. */
-export function TabBar({ hasSociety }: NavProps) {
+export function TabBar({ role, hasSociety }: NavProps) {
   const pathname = usePathname();
   const isActive = useIsActive();
   if (!hasSociety || pathname === "/reports/new") return null;
@@ -103,7 +104,8 @@ export function TabBar({ hasSociety }: NavProps) {
           </span>
           Report
         </Link>
-        {tab("/reports?mine=true", "Mine", StarIcon)}
+        {/* Managers and admins work from the queue; residents follow their own reports. */}
+        {role === "MANAGER" || role === "ADMIN" ? tab("/management", "Queue", InboxIcon) : tab("/reports?mine=true", "Mine", StarIcon)}
         {tab("/profile", "Profile", UserIcon)}
       </div>
     </nav>

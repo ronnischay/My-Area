@@ -33,6 +33,14 @@ export function isStatus(value: unknown): value is ReportStatus {
   return STATUSES.some((s) => s.value === value);
 }
 
+/** Mirrors the API's transition map (backend status-transitions.ts). RESOLVED and REJECTED are final. */
+export const STATUS_TRANSITIONS: Record<ReportStatus, readonly ReportStatus[]> = {
+  OPEN: ["IN_PROGRESS", "REJECTED"],
+  IN_PROGRESS: ["RESOLVED", "REJECTED", "OPEN"],
+  RESOLVED: [],
+  REJECTED: [],
+};
+
 /** Limits mirror POST /api/reports (docs/API_CONTRACT.md). */
 export const REPORT_LIMITS = {
   title: { min: 5, max: 120 },

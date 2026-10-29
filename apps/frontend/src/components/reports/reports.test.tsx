@@ -70,3 +70,10 @@ describe("ReportFilters", () => {
     expect(screen.getByLabelText("Status")).toHaveValue("");
   });
 });
+
+describe("toSearch sort", () => {
+  it("only adds sort when it isn't the default", () => {
+    expect(toSearch({ status: "OPEN", sort: "oldest" })).toBe("?status=OPEN&sort=oldest");
+    expect(toSearch({ sort: "newest" })).toBe("");
+  });
+});
