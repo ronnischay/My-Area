@@ -14,7 +14,7 @@ export function Textarea({ className, showCount = false, maxLength, value, ...pr
   return (
     <div className="flex flex-col gap-1">
       <textarea
-        className={cn(controlClasses, "min-h-32 py-2.5", className)}
+        className={cn(controlClasses, "min-h-32 py-3", className)}
         maxLength={maxLength}
         value={value}
         {...props}

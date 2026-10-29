@@ -34,7 +34,7 @@ export function Alert({ tone = "info", title, children, action, className }: Ale
   return (
     <div
       role={tone === "error" ? "alert" : "status"}
-      className={cn("flex gap-3 rounded-md border p-4", tones[tone], className)}
+      className={cn("flex gap-3 rounded-card border p-4", tones[tone], className)}
     >
       <svg viewBox="0 0 20 20" fill="currentColor" className="mt-0.5 size-5 shrink-0" aria-hidden="true">
         <path fillRule="evenodd" d={icons[tone]} clipRule="evenodd" />

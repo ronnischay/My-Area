@@ -5,13 +5,13 @@ import { controlClasses } from "./Input";
 export function Select({ className, children, ...props }: ComponentProps<"select">) {
   return (
     <div className="relative">
-      <select className={cn(controlClasses, "min-h-11 appearance-none pr-10", className)} {...props}>
+      <select className={cn(controlClasses, "min-h-13 appearance-none pr-10", className)} {...props}>
         {children}
       </select>
       <svg
         viewBox="0 0 20 20"
         fill="currentColor"
-        className="pointer-events-none absolute top-1/2 right-3 size-5 -translate-y-1/2 text-fg-muted"
+        className="pointer-events-none absolute top-1/2 right-4 size-5 -translate-y-1/2 text-fg-muted"
         aria-hidden="true"
       >
         <path

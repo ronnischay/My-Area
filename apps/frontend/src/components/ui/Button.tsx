@@ -3,25 +3,27 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/cn";
 import { Spinner } from "./Spinner";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "brand" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors " +
+  "inline-flex items-center justify-center gap-2 rounded-pill font-semibold transition-colors " +
   "disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60";
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-primary-fg shadow-sm hover:bg-primary-hover",
+  primary: "bg-primary text-primary-fg hover:bg-primary-hover",
+  // The owner's exact green as a fill; dark text keeps it readable (5.6:1).
+  brand: "bg-brand text-brand-fg hover:brightness-95",
   secondary: "border border-border-strong bg-surface text-fg hover:bg-surface-muted",
   ghost: "text-fg hover:bg-surface-muted",
-  danger: "bg-danger text-primary-fg shadow-sm hover:bg-danger-hover",
+  danger: "bg-danger text-surface hover:bg-danger-hover",
 };
 
-// Every size keeps a ≥ 44px touch target (UI_UX_GUIDELINES §4).
+// Every size keeps a ≥ 44px touch target; primary actions use lg (52px) (UI_UX_GUIDELINES §4–5).
 const sizes: Record<ButtonSize, string> = {
-  sm: "min-h-11 px-3 text-sm",
-  md: "min-h-11 px-4 text-base",
-  lg: "min-h-12 px-6 text-base",
+  sm: "min-h-11 px-4 text-sm",
+  md: "min-h-12 px-5 text-base",
+  lg: "min-h-13 px-6 text-base",
 };
 
 export function buttonClasses({

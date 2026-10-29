@@ -1,57 +1,143 @@
 @import "tailwindcss";
 
 /*
- * Design tokens — see docs/UI_UX_GUIDELINES.md §2.
+ * Design tokens — see docs/UI_UX_GUIDELINES.md §2 (Courtyard, D018; themes, D019).
  * Defined in @theme so Tailwind generates utilities (bg-surface, text-fg-muted, border-border, …)
  * and exposes each token as a CSS variable on :root. Components use these, never raw hex values.
- * Light theme only for the MVP (dark mode is optional per the guidelines).
+ * Light is the default. Dark mode only overrides these same variables (bottom of this file).
+ * Every text pair is ≥ 4.5:1 and every UI edge ≥ 3:1 in both themes (checked 2026-10-29).
  */
 @theme {
-  /* Surfaces */
-  --color-canvas: #f8fafc;
+  /* Surfaces: neutrals with a slight green bias */
+  --color-canvas: #f5f9f4;
   --color-surface: #ffffff;
-  --color-surface-muted: #f1f5f9;
-  --color-border: #e2e8f0;
-  --color-border-strong: #94a3b8;
+  --color-surface-muted: #ecf4ea;
+  --color-border: #d9e6d6;
+  --color-border-strong: #7d927a;
 
-  /* Text (≥ 4.5:1 on canvas/surface) */
-  --color-fg: #0f172a;
-  --color-fg-muted: #475569;
+  /* Text */
+  --color-fg: #0f1f12;
+  --color-fg-muted: #4a5d4c;
 
-  /* Brand */
-  --color-primary: #0f766e;
-  --color-primary-hover: #115e59;
+  /* Brand: #07ab12 is the owner's colour, used for accents and as a fill with dark text.
+     `primary` is the shade that carries white text and links (5.5:1 on white). */
+  --color-brand: #07ab12;
+  --color-brand-fg: #06210a;
+  --color-primary: #057a0d;
+  --color-primary-hover: #04650b;
   --color-primary-fg: #ffffff;
-  --color-primary-soft: #f0fdfa;
+  --color-primary-soft: #e3f5e4;
 
   /* Feedback: strong text colour + tinted background + border */
-  --color-danger: #b91c1c;
-  --color-danger-hover: #991b1b;
-  --color-danger-soft: #fef2f2;
-  --color-danger-border: #fecaca;
-  --color-success: #15803d;
-  --color-success-soft: #f0fdf4;
-  --color-success-border: #bbf7d0;
-  --color-warning: #b45309;
-  --color-warning-soft: #fffbeb;
-  --color-warning-border: #fde68a;
+  --color-danger: #b42318;
+  --color-danger-hover: #93190f;
+  --color-danger-soft: #fdeceb;
+  --color-danger-border: #f6c3bf;
+  --color-success: #11692a;
+  --color-success-soft: #e6f6ea;
+  --color-success-border: #b5e2c1;
+  --color-warning: #9a4a05;
+  --color-warning-soft: #fff6e0;
+  --color-warning-border: #f3d79a;
   --color-info: #1d4ed8;
-  --color-info-soft: #eff6ff;
-  --color-info-border: #bfdbfe;
+  --color-info-soft: #eaf1ff;
+  --color-info-border: #bccdfb;
+  --color-neutral: #4a5d4c;
+  --color-neutral-soft: #ecf0eb;
+  --color-neutral-border: #d3dcd2;
 
-  /* Shape */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.06);
-  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.1);
+  /* Shape (Courtyard) */
+  --radius-field: 16px;
+  --radius-card: 20px;
+  --radius-panel: 22px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px 0 rgb(15 31 18 / 0.06);
+  --shadow-md: 0 8px 20px -6px rgb(15 31 18 / 0.18);
+
+  /* Type */
+  --text-display: 1.75rem;
+  --text-display--line-height: 1.05;
+  --text-display-lg: 2rem;
+  --text-display-lg--line-height: 1.05;
 }
 
 @theme inline {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: var(--font-body), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-heading), system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
+/* Dark: chosen explicitly, or "Match device" on a device set to dark. Same tokens, new values. */
 @layer base {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-canvas: #0d130f;
+    --color-surface: #141c16;
+    --color-surface-muted: #1b251d;
+    --color-border: #2a372c;
+    --color-border-strong: #6c806d;
+    --color-fg: #e7efe7;
+    --color-fg-muted: #a6b6a7;
+    --color-brand-fg: #03150a;
+    --color-primary: #07ab12;
+    --color-primary-hover: #2fc23a;
+    --color-primary-fg: #03150a;
+    --color-primary-soft: #123018;
+    --color-danger: #ff9c94;
+    --color-danger-hover: #ffb6b0;
+    --color-danger-soft: #3d1714;
+    --color-danger-border: #6b2a25;
+    --color-success: #7fdc8f;
+    --color-success-soft: #123018;
+    --color-success-border: #24502d;
+    --color-warning: #f5c46b;
+    --color-warning-soft: #3a2a0f;
+    --color-warning-border: #6a4d1a;
+    --color-info: #a3c0ff;
+    --color-info-soft: #1b2742;
+    --color-info-border: #34466f;
+    --color-neutral: #c3cfc4;
+    --color-neutral-soft: #232d25;
+    --color-neutral-border: #3a473c;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-md: 0 8px 20px -6px rgb(0 0 0 / 0.6);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root[data-theme="system"] {
+      color-scheme: dark;
+      --color-canvas: #0d130f;
+      --color-surface: #141c16;
+      --color-surface-muted: #1b251d;
+      --color-border: #2a372c;
+      --color-border-strong: #6c806d;
+      --color-fg: #e7efe7;
+      --color-fg-muted: #a6b6a7;
+      --color-brand-fg: #03150a;
+      --color-primary: #07ab12;
+      --color-primary-hover: #2fc23a;
+      --color-primary-fg: #03150a;
+      --color-primary-soft: #123018;
+      --color-danger: #ff9c94;
+      --color-danger-hover: #ffb6b0;
+      --color-danger-soft: #3d1714;
+      --color-danger-border: #6b2a25;
+      --color-success: #7fdc8f;
+      --color-success-soft: #123018;
+      --color-success-border: #24502d;
+      --color-warning: #f5c46b;
+      --color-warning-soft: #3a2a0f;
+      --color-warning-border: #6a4d1a;
+      --color-info: #a3c0ff;
+      --color-info-soft: #1b2742;
+      --color-info-border: #34466f;
+      --color-neutral: #c3cfc4;
+      --color-neutral-soft: #232d25;
+      --color-neutral-border: #3a473c;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+      --shadow-md: 0 8px 20px -6px rgb(0 0 0 / 0.6);
+    }
+  }
+
   html {
     color-scheme: light;
     -webkit-text-size-adjust: 100%;
@@ -62,6 +148,17 @@
     color: var(--color-fg);
     font-family: var(--font-sans);
     line-height: 1.5;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  /* Display face (Bricolage Grotesque) with its tracking: `font-display` utility + this. */
+  .font-display {
+    letter-spacing: -0.02em;
   }
 
   /* Visible focus for every interactive element (UI_UX_GUIDELINES §5). */

@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-export type BadgeTone = "neutral" | "info" | "warning" | "success" | "danger";
+export type BadgeTone = "neutral" | "info" | "warning" | "success" | "danger" | "brand";
 
 const tones: Record<BadgeTone, string> = {
-  neutral: "border-border bg-surface-muted text-fg-muted",
+  neutral: "border-neutral-border bg-neutral-soft text-neutral",
+  brand: "border-transparent bg-primary-soft text-primary",
   info: "border-info-border bg-info-soft text-info",
   warning: "border-warning-border bg-warning-soft text-warning",
   success: "border-success-border bg-success-soft text-success",
@@ -16,7 +17,7 @@ export function Badge({ tone = "neutral", children, className }: { tone?: BadgeT
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap",
+        "inline-flex items-center rounded-pill border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap",
         tones[tone],
         className,
       )}
