@@ -105,3 +105,94 @@ export interface InviteResponse {
   data: SocietyMember;
   meta: { invite: InviteDelivery };
 }
+
+// --- Reports (Phase 3) --------------------------------------------------------
+
+export type ReportCategory =
+  | "ROADS"
+  | "STREETLIGHTS"
+  | "WASTE"
+  | "WATER_DRAINAGE"
+  | "PARKS"
+  | "NOISE"
+  | "SAFETY"
+  | "OTHER";
+export type ReportStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "REJECTED";
+
+export interface UserRef {
+  id: string;
+  name: string;
+}
+
+export interface ReportMedia {
+  id: string;
+  purpose: "SUBMISSION" | "RESOLUTION";
+  mediaType: "IMAGE" | "VIDEO";
+  /** https Cloudinary URL. */
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+  /** Pixel size, so the UI can reserve space before the image loads. */
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+}
+
+/** Phase 7. Always an empty list before then. */
+export interface StatusHistoryEntry {
+  id: string;
+  fromStatus: ReportStatus;
+  toStatus: ReportStatus;
+  note: string | null;
+  changedBy: UserRef;
+  createdAt: string;
+}
+
+/** GET /api/reports/:id and POST /api/reports. */
+export interface Report {
+  id: string;
+  title: string;
+  description: string;
+  category: ReportCategory;
+  locationText: string;
+  status: ReportStatus;
+  media: ReportMedia[];
+  /** The caller created it. */
+  isMine: boolean;
+  /** Set for MANAGER/ADMIN callers and for the author; null for other residents. */
+  createdBy: UserRef | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  statusHistory: StatusHistoryEntry[];
+}
+
+/** GET /api/reports list item. */
+export interface ReportSummary {
+  id: string;
+  title: string;
+  category: ReportCategory;
+  locationText: string;
+  status: ReportStatus;
+  thumbnailUrl: string | null;
+  isMine: boolean;
+  createdAt: string;
+}
+
+/** POST /api/reports body (Phase 3: JSON fields; Phase 4 switches to multipart with `photo`). */
+export interface CreateReportInput {
+  title: string;
+  description: string;
+  category: ReportCategory;
+  locationText: string;
+}
+
+export interface ReportListQuery {
+  page?: number;
+  pageSize?: number;
+  status?: ReportStatus;
+  category?: ReportCategory;
+  mine?: boolean;
+  q?: string;
+  sort?: "newest" | "oldest";
+}
