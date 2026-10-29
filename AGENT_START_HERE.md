@@ -29,11 +29,11 @@ A society **admin** (created by CLI) sets up their residential society and invit
 - Frontend: Next.js 16 + TypeScript (strict), App Router with Cache Components, Tailwind CSS v4, hand-written `components/ui/` primitives. **Read `apps/frontend/AGENTS.md` and the bundled docs in `node_modules/next/dist/docs/` before writing Next.js code**, because its APIs differ from older versions.
 - Backend: Express + TypeScript (strict), feature modules (`routes → controller → service → repository`). Do not use NestJS.
 - Database: PostgreSQL + **Drizzle ORM** (`drizzle-orm` + `pg`, `drizzle-kit` for migrations). **Not Prisma.**
-- Media: Cloudinary behind a backend-only `MediaStorage` adapter.
+- Media: report photos on the server's disk behind a backend-only `MediaStorage` interface (D021), metadata stripped on upload, served only to the report's society via `GET /api/media/:id`. Cloudinary may replace the local adapter later.
 - Email: one recipient (`ISSUE_MANAGEMENT_EMAIL`), one provider (Resend OR Nodemailer/SMTP) behind `EmailSender`. Never invent credentials.
 - Tests: Vitest for both apps; React Testing Library for UI; Supertest for Express; a dedicated test DB for repository integration tests.
 - No map or map SDK.
-- Never expose database, Cloudinary, AI or email secrets via `NEXT_PUBLIC_` variables.
+- Never expose database, media, AI or email secrets via `NEXT_PUBLIC_` variables.
 - No live email, media or AI provider calls in tests. Mock the provider interfaces.
 - Auth (D014): email + password, DB sessions in an httpOnly cookie, roles `ADMIN`/`MANAGER`/`RESIDENT`, invite-only membership, one society per user. **Every report/member query is scoped to the session's `society_id`; never trust a society id from the client.** Auth comes first (Phase 2).
 - Responsive (mobile-first) and accessible (WCAG 2.2 AA) UI is a requirement, not polish, in **both light (default) and dark themes** (D018 Courtyard, D019).

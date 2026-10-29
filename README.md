@@ -13,7 +13,7 @@ A society admin sets up their residential society and invites residents and mana
 | Backend | Express 5 · TypeScript 5.9 (ESM) · Zod 4 · helmet · cors |
 | Database | PostgreSQL 17 · Drizzle ORM 0.45 (`drizzle-orm`, `pg`) · `drizzle-kit` 0.31 migrations |
 | Auth | Email + password (scrypt), DB sessions in an httpOnly cookie, roles Admin/Manager/Resident, invite-only |
-| Media | Cloudinary (backend-only adapter) *(Phase 4)* |
+| Media | Report photos on the server's disk (`UPLOAD_DIR`), metadata stripped, served only to the society's members (multer upload) |
 | Email | SMTP via nodemailer (console sender for local dev): invites; new-report email to one shared inbox *(Phase 5)* |
 | Design | "Courtyard": Bricolage Grotesque + Figtree, light default + dark toggle *(Phase 6)* |
 | Tests | Vitest 5 · React Testing Library · Supertest |
@@ -34,7 +34,7 @@ Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
   createdb myarea_dev && createdb myarea_test
   ```
   `myarea_dev` is your working data. `myarea_test` is only for `npm run test:integration`, which empties its tables on every run.
-- SMTP credentials for real email (optional locally: `EMAIL_PROVIDER=console` prints invite emails, with their links, to the backend log) and a Cloudinary account *(Phase 4)*, backend only.
+- SMTP credentials for real email (optional locally: `EMAIL_PROVIDER=console` prints invite emails, with their links, to the backend log), backend only.
 
 ## Setup
 ```bash
@@ -51,7 +51,7 @@ npm run dev                                               # backend http://local
 Check it's working: `curl localhost:4000/health` returns `{"status":"ok"}`, and http://localhost:3000 shows the home page.
 The backend refuses to start without `DATABASE_URL`. All other variables have local defaults; see `apps/backend/.env.example`.
 
-Until the UI exists (Phase 6), use the API directly: sign in with `POST /api/auth/login`, create your society with `POST /api/societies`, and invite members with `POST /api/admin/users` ([`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)). With `EMAIL_PROVIDER=console`, the invite link appears in the backend log. Reports: `POST`/`GET /api/reports` and `GET /api/reports/:id`.
+Until the UI exists (Phase 6), use the API directly: sign in with `POST /api/auth/login`, create your society with `POST /api/societies`, and invite members with `POST /api/admin/users` ([`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)). With `EMAIL_PROVIDER=console`, the invite link appears in the backend log. Reports: `POST /api/reports` (multipart: `title`, `description`, `category`, `locationText` and one `photo`, JPEG/PNG/WebP up to 5 MB), `GET /api/reports`, `GET /api/reports/:id`; photos are served at `GET /api/media/:id` to signed-in members of the report's society.
 
 For demo data, run `npm run db:seed -w backend`. It adds the society "Green Park Residency" with an admin (`asha.rao@greenpark.example`), a manager (`rohit.sharma@greenpark.example`), two residents (`meera.iyer@…`, `farhan.qureshi@…`) and 10 reports. All four sign in with the `SEED_PASSWORD` from `apps/backend/.env`. Running it again changes nothing.
 
@@ -79,6 +79,7 @@ Each app has its own committed `.env.example` with placeholders: [`apps/backend/
 
 - Secrets are **backend-only** and live in the git-ignored `apps/backend/.env` (`DATABASE_URL`, `SMTP_USER`, `SMTP_PASS`). Defaults in code are public local-dev values only. The frontend reads only `NEXT_PUBLIC_API_BASE_URL`, which is public and inlined at build time.
 - Demo data: `SEED_PASSWORD` (backend `.env` only) is the password for every account `db:seed` creates.
+- Photos: `UPLOAD_DIR` (default `uploads`, i.e. `apps/backend/uploads/`, git-ignored). Back it up together with the database: a report's photo exists only there.
 - Email: `EMAIL_PROVIDER=console` (default; refused in production) or `smtp` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, plus `EMAIL_FROM` and `APP_URL` (used in invite links).
 - The backend validates its environment at startup and exits with a list of the invalid variables (names only, never values).
 
@@ -106,4 +107,5 @@ Each app has its own committed `.env.example` with placeholders: [`apps/backend/
 - One society per admin and per user; members join by invite only; no forgot/change-password yet (see `docs/features/auth.md`).
 - Login rate limiting is in memory (per process, resets on restart).
 - The theme preference is saved per device, not per account.
+- Photos live on one server's disk (no CDN, no multi-server sharing); seeded demo reports have no photo.
 - Email is attempted once after save. Failures are recorded for manual retry, and there is no background worker.
