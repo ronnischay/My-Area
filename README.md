@@ -45,12 +45,15 @@ cp apps/frontend/.env.example apps/frontend/.env.local    # NEXT_PUBLIC_API_BASE
 npm run db:migrate -w backend                             # create the tables in myarea_dev
 DATABASE_URL=postgres://$USER@localhost:5432/myarea_test npm run db:migrate -w backend   # and in the test DB
 npm run user:create-admin -w backend -- --email you@example.com --name "Your Name"     # asks for a password
+npm run db:seed -w backend                                # optional demo data; set SEED_PASSWORD in apps/backend/.env first
 npm run dev                                               # backend http://localhost:4000, frontend http://localhost:3000
 ```
 Check it's working: `curl localhost:4000/health` returns `{"status":"ok"}`, and http://localhost:3000 shows the home page.
 The backend refuses to start without `DATABASE_URL`. All other variables have local defaults; see `apps/backend/.env.example`.
 
-Until the UI exists (Phase 6), use the API directly: sign in with `POST /api/auth/login`, create your society with `POST /api/societies`, and invite members with `POST /api/admin/users` ([`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)). With `EMAIL_PROVIDER=console`, the invite link appears in the backend log. *(Phase 3)* `npm run db:seed -w backend` will add a demo society with users and reports.
+Until the UI exists (Phase 6), use the API directly: sign in with `POST /api/auth/login`, create your society with `POST /api/societies`, and invite members with `POST /api/admin/users` ([`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)). With `EMAIL_PROVIDER=console`, the invite link appears in the backend log. Reports: `POST`/`GET /api/reports` and `GET /api/reports/:id`.
+
+For demo data, run `npm run db:seed -w backend`. It adds the society "Green Park Residency" with an admin (`asha.rao@greenpark.example`), a manager (`rohit.sharma@greenpark.example`), two residents (`meera.iyer@…`, `farhan.qureshi@…`) and 10 reports. All four sign in with the `SEED_PASSWORD` from `apps/backend/.env`. Running it again changes nothing.
 
 ## Scripts
 Run from the repo root.
@@ -65,7 +68,7 @@ Run from the repo root.
 | `npm run db:generate -w backend -- --name <change>` | Generate a SQL migration from the Drizzle schema (read the SQL before applying) |
 | `npm run db:migrate -w backend` | Apply migrations to `DATABASE_URL` |
 | `npm run db:check` / `db:studio` `-w backend` | Migration consistency / local DB browser |
-| *(Phase 3)* `npm run db:seed -w backend` | Demo data (refuses to run in production) |
+| `npm run db:seed -w backend` | Demo society, members and reports; needs `SEED_PASSWORD`; safe to re-run; refuses to run in production |
 | `npm run user:create-admin -w backend -- --email <e> --name "<n>"` | Create a society admin, the only way to create one (non-interactive: set `ADMIN_PASSWORD`) |
 | `npm run test:integration -w backend` | Repository tests against `DATABASE_URL_TEST` (must be a `*_test` database) |
 
@@ -75,6 +78,7 @@ Production-style run: `npm run build` then `npm run start -w backend` and `npm r
 Each app has its own committed `.env.example` with placeholders: [`apps/backend/.env.example`](apps/backend/.env.example) and [`apps/frontend/.env.example`](apps/frontend/.env.example). Variables for later phases are listed commented out. What each variable does is in [`docs/ARCHITECTURE.md §7`](docs/ARCHITECTURE.md#7-environment-variables).
 
 - Secrets are **backend-only** and live in the git-ignored `apps/backend/.env` (`DATABASE_URL`, `SMTP_USER`, `SMTP_PASS`). Defaults in code are public local-dev values only. The frontend reads only `NEXT_PUBLIC_API_BASE_URL`, which is public and inlined at build time.
+- Demo data: `SEED_PASSWORD` (backend `.env` only) is the password for every account `db:seed` creates.
 - Email: `EMAIL_PROVIDER=console` (default; refused in production) or `smtp` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, plus `EMAIL_FROM` and `APP_URL` (used in invite links).
 - The backend validates its environment at startup and exits with a list of the invalid variables (names only, never values).
 
