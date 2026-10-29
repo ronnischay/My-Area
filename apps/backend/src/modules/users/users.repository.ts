@@ -1,6 +1,7 @@
 import { and, count, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import { isUniqueViolation } from "../../db/errors.js";
+import { containsPattern } from "../../db/like.js";
 import { sessions, societies, userInvites, users } from "../../db/schema/index.js";
 import { offsetOf } from "../../lib/pagination.js";
 import type { MemberRecord, MemberRole, UserRole, UserStatus } from "./users.types.js";
@@ -59,11 +60,6 @@ const memberColumns = {
   lastLoginAt: users.lastLoginAt,
   createdAt: users.createdAt,
 };
-
-/** Escapes LIKE wildcards so a search for "50%" matches literally. */
-function containsPattern(q: string): string {
-  return `%${q.replace(/[\\%_]/g, "\\$&")}%`;
-}
 
 export function createUsersRepository(db: Database): UsersRepository {
   const findMember = async (societyId: string, userId: string) => {
