@@ -128,7 +128,7 @@ export interface ReportMedia {
   id: string;
   purpose: "SUBMISSION" | "RESOLUTION";
   mediaType: "IMAGE" | "VIDEO";
-  /** https Cloudinary URL. */
+  /** Same-origin path `/api/media/:id`; needs the session cookie (only the report's society can load it). */
   url: string;
   mimeType: string;
   sizeBytes: number;
@@ -179,7 +179,10 @@ export interface ReportSummary {
   createdAt: string;
 }
 
-/** POST /api/reports body (Phase 3: JSON fields; Phase 4 switches to multipart with `photo`). */
+/**
+ * POST /api/reports text fields. Send as `multipart/form-data` together with one `photo` file
+ * (image/jpeg, image/png or image/webp, at most 5 MB).
+ */
 export interface CreateReportInput {
   title: string;
   description: string;
