@@ -1,7 +1,10 @@
-import type { ApiErrorBody, ApiErrorCode, HealthResponse } from "@/types/api";
-import { apiBaseUrl } from "./config";
+import type { ApiErrorBody, ApiErrorCode } from "@/types/api";
 
-/** The ONLY module that calls fetch against the backend (docs/ARCHITECTURE.md §5). */
+/**
+ * Browser → backend calls. Always same-origin `/api/...`: next.config.ts rewrites them to the Express
+ * API (D015), so the httpOnly session cookie is first-party and sent automatically.
+ * Server Components use `lib/server/backend.ts` instead.
+ */
 
 export type ClientErrorCode = ApiErrorCode | "NETWORK_ERROR";
 
@@ -33,44 +36,53 @@ function isApiErrorBody(value: unknown): value is ApiErrorBody {
   return typeof error === "object" && error !== null && "code" in error && "message" in error;
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(`${apiBaseUrl}${path}`, {
-      ...init,
-      headers: { Accept: "application/json", ...init?.headers },
-    });
-  } catch {
-    throw new ApiError({
-      status: 0,
-      code: "NETWORK_ERROR",
-      message: "We couldn't reach the server. Check your connection and try again.",
-    });
-  }
-
+/** Parses a backend response: the body on success, an ApiError otherwise. Shared with the server-side client. */
+export async function readApiResponse<T>(response: Response): Promise<T> {
+  if (response.status === 204) return undefined as T;
   const body: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
+    const requestId = response.headers.get("x-request-id") ?? undefined;
     if (isApiErrorBody(body)) {
       throw new ApiError({
         status: response.status,
         code: body.error.code,
         message: body.error.message,
         fieldErrors: body.error.details?.fieldErrors,
-        requestId: body.error.requestId ?? response.headers.get("x-request-id") ?? undefined,
+        requestId: body.error.requestId ?? requestId,
       });
     }
     throw new ApiError({
       status: response.status,
       code: "INTERNAL_ERROR",
       message: "Something went wrong on our side. Please try again.",
-      requestId: response.headers.get("x-request-id") ?? undefined,
+      requestId,
     });
   }
 
   return body as T;
 }
 
-export function getHealth(): Promise<HealthResponse> {
-  return apiFetch<HealthResponse>("/health");
+export const networkError = () =>
+  new ApiError({ status: 0, code: "NETWORK_ERROR", message: "We couldn't reach MyArea. Check your connection and try again." });
+
+/** `body`: a plain object is sent as JSON; FormData as multipart (the browser sets the boundary). */
+export async function apiFetch<T>(
+  path: `/api/${string}`,
+  init: Omit<RequestInit, "body"> & { body?: object | FormData } = {},
+): Promise<T> {
+  const { body, headers, ...rest } = init;
+  const isForm = typeof FormData !== "undefined" && body instanceof FormData;
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      ...rest,
+      credentials: "same-origin",
+      headers: { Accept: "application/json", ...(body && !isForm ? { "Content-Type": "application/json" } : {}), ...headers },
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
+    });
+  } catch {
+    throw networkError();
+  }
+  return readApiResponse<T>(response);
 }

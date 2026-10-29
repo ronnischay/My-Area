@@ -1,11 +1,13 @@
 import type { NextConfig } from "next";
+import { apiBaseUrl } from "./src/lib/config";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
-  images: {
-    // Report photos are served from Cloudinary (docs/features/media-uploads.md).
-    remotePatterns: [{ protocol: "https", hostname: "res.cloudinary.com" }],
+  // D015: the browser calls /api/* on this origin; Next forwards it to Express. The session cookie is
+  // first-party, and API_BASE_URL never reaches the browser.
+  async rewrites() {
+    return [{ source: "/api/:path*", destination: `${apiBaseUrl()}/api/:path*` }];
   },
   turbopack: {
     rules: {
