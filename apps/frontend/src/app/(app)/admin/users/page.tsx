@@ -69,7 +69,8 @@ async function Members({ searchParams }: Pick<PageProps<"/admin/users">, "search
 
   return (
     <>
-      <MemberFilters {...filters} />
+      {/* Keyed so client-side navigation (Back) rebuilds the uncontrolled inputs from the URL. */}
+      <MemberFilters key={queryString(filters)} {...filters} />
       <MembersList members={data} currentUserId={user.id} filtered={filtered} />
       <Pagination meta={meta} label="Member pages" hrefFor={(p) => `/admin/users${queryString({ ...filters, page: p })}`} />
     </>
