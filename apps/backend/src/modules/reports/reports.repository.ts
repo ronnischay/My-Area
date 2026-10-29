@@ -1,9 +1,9 @@
 import { and, asc, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import { containsPattern } from "../../db/like.js";
-import { reportMedia, reports } from "../../db/schema/index.js";
+import { reportMedia, reportStatusHistory, reports } from "../../db/schema/index.js";
 import { offsetOf } from "../../lib/pagination.js";
-import type { MediaType, ReportCategory, ReportRecord, ReportStatus, ReportSummaryRecord } from "./reports.types.js";
+import type { MediaType, ReportCategory, ReportMediaRecord, ReportRecord, ReportStatus, ReportSummaryRecord } from "./reports.types.js";
 
 export interface ReportListQuery {
   status?: ReportStatus;
@@ -40,6 +40,19 @@ export interface NewReportMedia {
   originalFilename: string | null;
 }
 
+export interface StatusChange {
+  societyId: string;
+  reportId: string;
+  to: ReportStatus;
+  note: string | null;
+  changedById: string;
+  at: Date;
+  /** The transition rule, checked against the locked current status. May be async (tests use that to force a race). */
+  isAllowed: (from: ReportStatus, to: ReportStatus) => boolean | Promise<boolean>;
+}
+
+export type StatusChangeResult = { outcome: "CHANGED"; report: ReportRecord } | { outcome: "NOT_FOUND" } | { outcome: "REFUSED"; from: ReportStatus };
+
 /**
  * Every report query takes `societyId` and filters by it: there is no unscoped finder, and an id
  * from another society behaves exactly like an id that doesn't exist (docs/DATABASE.md §2).
@@ -49,6 +62,15 @@ export interface ReportsRepository {
   create(input: NewReport): Promise<ReportRecord>;
   list(societyId: string, query: ReportListQuery): Promise<{ items: ReportSummaryRecord[]; total: number }>;
   findById(societyId: string, reportId: string): Promise<ReportRecord | null>;
+  /**
+   * One transaction: lock the report, check the transition against its current status, update it
+   * (setting or clearing `resolved_at`) and add the history row. Two managers can't both win a race.
+   */
+  changeStatus(change: StatusChange): Promise<StatusChangeResult>;
+  /** A RESOLUTION photo row; null when the report isn't in this society. The file is already stored. */
+  addResolutionMedia(societyId: string, reportId: string, media: NewReportMedia & { uploadedById: string }): Promise<ReportMediaRecord | null>;
+  /** Report counts per status for one society (zeros included). */
+  countByStatus(societyId: string): Promise<Record<ReportStatus, number>>;
 }
 
 export function createReportsRepository(db: Database): ReportsRepository {
@@ -62,9 +84,26 @@ export function createReportsRepository(db: Database): ReportsRepository {
           columns: { reportId: false, providerPublicId: false, originalFilename: false, uploadedById: false },
           orderBy: [asc(reportMedia.createdAt), asc(reportMedia.id)],
         },
+        statusHistory: {
+          columns: { reportId: false, changedById: false },
+          with: { changedBy: { columns: { id: true, name: true } } },
+          orderBy: [asc(reportStatusHistory.createdAt), asc(reportStatusHistory.id)],
+        },
       },
     });
     return row ?? null;
+  };
+
+  const mediaColumns = {
+    id: reportMedia.id,
+    purpose: reportMedia.purpose,
+    mediaType: reportMedia.mediaType,
+    url: reportMedia.url,
+    mimeType: reportMedia.mimeType,
+    sizeBytes: reportMedia.sizeBytes,
+    width: reportMedia.width,
+    height: reportMedia.height,
+    createdAt: reportMedia.createdAt,
   };
 
   return {
@@ -80,6 +119,57 @@ export function createReportsRepository(db: Database): ReportsRepository {
       const report = await findById(input.societyId, reportId);
       if (!report) throw new Error("report not found after insert");
       return report;
+    },
+
+    async changeStatus({ societyId, reportId, to, note, changedById, at, isAllowed }) {
+      const result = await db.transaction(async (tx): Promise<StatusChangeResult | "CHANGED"> => {
+        const [current] = await tx
+          .select({ status: reports.status })
+          .from(reports)
+          .where(and(eq(reports.id, reportId), eq(reports.societyId, societyId)))
+          .for("update");
+        if (!current) return { outcome: "NOT_FOUND" };
+        if (!(await isAllowed(current.status, to))) return { outcome: "REFUSED", from: current.status };
+
+        await tx
+          .update(reports)
+          .set({ status: to, resolvedAt: to === "RESOLVED" ? at : null })
+          .where(eq(reports.id, reportId));
+        await tx.insert(reportStatusHistory).values({ reportId, fromStatus: current.status, toStatus: to, note, changedById, createdAt: at });
+        return "CHANGED";
+      });
+      if (result !== "CHANGED") return result;
+      const report = await findById(societyId, reportId);
+      if (!report) throw new Error("report not found after status change");
+      return { outcome: "CHANGED", report };
+    },
+
+    async addResolutionMedia(societyId, reportId, { uploadedById, ...media }) {
+      return db.transaction(async (tx) => {
+        const [report] = await tx
+          .select({ id: reports.id })
+          .from(reports)
+          .where(and(eq(reports.id, reportId), eq(reports.societyId, societyId)))
+          .for("share");
+        if (!report) return null;
+        const [row] = await tx
+          .insert(reportMedia)
+          .values({ ...media, reportId, purpose: "RESOLUTION", uploadedById })
+          .returning(mediaColumns);
+        if (!row) throw new Error("media insert returned no row");
+        return row;
+      });
+    },
+
+    async countByStatus(societyId) {
+      const rows = await db
+        .select({ status: reports.status, total: count() })
+        .from(reports)
+        .where(eq(reports.societyId, societyId))
+        .groupBy(reports.status);
+      const counts: Record<ReportStatus, number> = { OPEN: 0, IN_PROGRESS: 0, RESOLVED: 0, REJECTED: 0 };
+      for (const row of rows) counts[row.status] = row.total;
+      return counts;
     },
 
     async list(societyId, { status, category, createdById, q, sort, page, pageSize }) {

@@ -18,6 +18,7 @@ import { authRouter } from "./modules/auth/auth.routes.js";
 import { createAuthService } from "./modules/auth/auth.service.js";
 import { createLoginRateLimiter } from "./modules/auth/login-rate-limiter.js";
 import { healthRouter } from "./modules/health/health.routes.js";
+import { managementRouter } from "./modules/management/management.routes.js";
 import type { MediaRepository } from "./modules/media/media.repository.js";
 import { mediaRouter } from "./modules/media/media.routes.js";
 import type { NotificationsRepository } from "./modules/notifications/notifications.repository.js";
@@ -109,24 +110,21 @@ export function createApp({
     }),
   );
 
-  app.use(
-    "/api/reports",
-    reportsRouter({
-      service: createReportsService({
-        repository: repositories.reports,
-        storage: mediaStorage,
-        notifications: createNotificationsService({
-          repository: repositories.notifications,
-          emailSender,
-          logger,
-          appUrl: config.appUrl,
-        }),
-        backgroundTasks,
-        logger,
-      }),
-      requireAuth: authenticated,
+  const reportsService = createReportsService({
+    repository: repositories.reports,
+    storage: mediaStorage,
+    notifications: createNotificationsService({
+      repository: repositories.notifications,
+      emailSender,
+      logger,
+      appUrl: config.appUrl,
     }),
-  );
+    backgroundTasks,
+    logger,
+    clock,
+  });
+  app.use("/api/reports", reportsRouter({ service: reportsService, requireAuth: authenticated }));
+  app.use("/api/management", managementRouter({ reports: reportsService, requireAuth: authenticated }));
   app.use(
     "/api/media",
     mediaRouter({ repository: repositories.media, storage: mediaStorage, logger, requireAuth: authenticated }),

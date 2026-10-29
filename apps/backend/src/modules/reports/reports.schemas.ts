@@ -39,5 +39,22 @@ export const CreateReportFormSchema = CreateReportBodySchema.extend({
   photo: z.custom<Express.Multer.File>((file) => file !== undefined && file !== null, "Add a photo of the problem"),
 });
 
+/** PATCH /api/reports/:id/status. A blank note is stored as no note. */
+export const UpdateStatusBodySchema = z.object({
+  status: z.enum(REPORT_STATUSES, "Choose a status"),
+  note: z
+    .string()
+    .trim()
+    .max(1000, "Note must be at most 1000 characters")
+    .optional()
+    .transform((note) => note || null),
+});
+
+/** POST /api/reports/:id/media: one multipart `photo`. */
+export const ResolutionPhotoFormSchema = z.object({
+  photo: z.custom<Express.Multer.File>((file) => file !== undefined && file !== null, "Add a photo"),
+});
+
 export type CreateReportInput = z.output<typeof CreateReportBodySchema>;
+export type UpdateStatusInput = z.output<typeof UpdateStatusBodySchema>;
 export type ListReportsQuery = z.output<typeof ListReportsQuerySchema>;

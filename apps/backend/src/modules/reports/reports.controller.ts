@@ -3,9 +3,9 @@ import { paginationMeta } from "../../lib/pagination.js";
 import { IdParamSchema, parseInput } from "../../lib/validation.js";
 import { getSocietyAuth } from "../../middleware/require-society.js";
 import { preparePhoto } from "../media/media.validation.js";
-import { CreateReportFormSchema, ListReportsQuerySchema } from "./reports.schemas.js";
+import { CreateReportFormSchema, ListReportsQuerySchema, ResolutionPhotoFormSchema, UpdateStatusBodySchema } from "./reports.schemas.js";
 import type { ReportsService } from "./reports.service.js";
-import { toReportDto, toReportSummaryDto } from "./reports.types.js";
+import { toReportDto, toReportMediaDto, toReportSummaryDto } from "./reports.types.js";
 
 export function createReportsController({ service }: { service: ReportsService }) {
   const create: RequestHandler = async (req, res) => {
@@ -31,5 +31,19 @@ export function createReportsController({ service }: { service: ReportsService }
     res.json({ data: toReportDto(await service.get(auth, id), auth) });
   };
 
-  return { create, list, get };
+  const changeStatus: RequestHandler = async (req, res) => {
+    const { id } = parseInput(IdParamSchema, req.params);
+    const input = parseInput(UpdateStatusBodySchema, req.body);
+    const auth = getSocietyAuth(req);
+    res.json({ data: toReportDto(await service.changeStatus(auth, id, input), auth) });
+  };
+
+  const addResolutionPhoto: RequestHandler = async (req, res) => {
+    const { id } = parseInput(IdParamSchema, req.params);
+    const { photo } = parseInput(ResolutionPhotoFormSchema, { photo: req.file });
+    const media = await service.addResolutionPhoto(getSocietyAuth(req), id, preparePhoto(photo));
+    res.status(201).json({ data: toReportMediaDto(media) });
+  };
+
+  return { create, list, get, changeStatus, addResolutionPhoto };
 }

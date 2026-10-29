@@ -75,6 +75,16 @@ export interface ReportMediaRow {
   createdAt: Date;
 }
 
+export interface StatusHistoryRow {
+  id: string;
+  reportId: string;
+  fromStatus: ReportStatus;
+  toStatus: ReportStatus;
+  note: string | null;
+  changedById: string;
+  createdAt: Date;
+}
+
 export class InMemoryStore {
   users = new Map<string, UserRow>();
   societies = new Map<string, SocietyRow>();
@@ -84,6 +94,7 @@ export class InMemoryStore {
   invites = new Map<string, TokenRow>();
   reports = new Map<string, ReportRow>();
   reportMedia = new Map<string, ReportMediaRow>();
+  statusHistory: StatusHistoryRow[] = [];
   /** Set to make the next report write throw, like a lost database connection. */
   failReportWrites: Error | null = null;
 
@@ -312,6 +323,13 @@ export function createFakeReportsRepository(store: InMemoryStore): ReportsReposi
         height: m.height,
         createdAt: m.createdAt,
       })),
+      statusHistory: store.statusHistory
+        .filter((h) => h.reportId === report.id)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .map(({ reportId: _r, changedById, ...h }) => {
+          const by = store.users.get(changedById);
+          return { ...h, changedBy: { id: changedById, name: by?.name ?? "" } };
+        }),
     };
   };
 
@@ -366,6 +384,43 @@ export function createFakeReportsRepository(store: InMemoryStore): ReportsReposi
     async findById(societyId, reportId) {
       const report = store.reports.get(reportId);
       return report && report.societyId === societyId ? toRecord(report) : null;
+    },
+
+    async changeStatus({ societyId, reportId, to, note, changedById, at, isAllowed }) {
+      if (store.failReportWrites) throw store.failReportWrites;
+      const report = store.reports.get(reportId);
+      if (!report || report.societyId !== societyId) return { outcome: "NOT_FOUND" };
+      if (!(await isAllowed(report.status, to))) return { outcome: "REFUSED", from: report.status };
+      store.statusHistory.push({ id: store.newId(), reportId, fromStatus: report.status, toStatus: to, note, changedById, createdAt: at });
+      report.status = to;
+      report.resolvedAt = to === "RESOLVED" ? at : null;
+      report.updatedAt = at;
+      return { outcome: "CHANGED", report: toRecord(report) };
+    },
+
+    async addResolutionMedia(societyId, reportId, { uploadedById: _u, originalFilename: _f, ...media }) {
+      if (store.failReportWrites) throw store.failReportWrites;
+      const report = store.reports.get(reportId);
+      if (!report || report.societyId !== societyId) return null;
+      const row: ReportMediaRow = { ...media, reportId, purpose: "RESOLUTION", createdAt: store.nextCreatedAt() };
+      store.reportMedia.set(row.id, row);
+      return {
+        id: row.id,
+        purpose: row.purpose,
+        mediaType: row.mediaType,
+        url: row.url,
+        mimeType: row.mimeType,
+        sizeBytes: row.sizeBytes,
+        width: row.width,
+        height: row.height,
+        createdAt: row.createdAt,
+      };
+    },
+
+    async countByStatus(societyId) {
+      const counts = { OPEN: 0, IN_PROGRESS: 0, RESOLVED: 0, REJECTED: 0 };
+      for (const r of store.reports.values()) if (r.societyId === societyId) counts[r.status] += 1;
+      return counts;
     },
   };
 }

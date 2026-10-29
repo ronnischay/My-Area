@@ -49,9 +49,30 @@ export interface ReportRecord {
   status: ReportStatus;
   createdBy: UserRef;
   media: ReportMediaRecord[];
+  /** Oldest first. */
+  statusHistory: StatusHistoryRecord[];
   resolvedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface StatusHistoryRecord {
+  id: string;
+  fromStatus: ReportStatus;
+  toStatus: ReportStatus;
+  note: string | null;
+  changedBy: UserRef;
+  createdAt: Date;
+}
+
+/** `StatusHistoryEntry` in the API contract. */
+export interface StatusHistoryDto {
+  id: string;
+  fromStatus: ReportStatus;
+  toStatus: ReportStatus;
+  note: string | null;
+  changedBy: UserRef;
+  createdAt: string;
 }
 
 export interface ReportSummaryRecord {
@@ -84,7 +105,7 @@ export interface ReportMediaDto {
   createdAt: string;
 }
 
-/** `Report` (+ `statusHistory`, empty until Phase 7) in the API contract. */
+/** `Report` (+ `statusHistory`, oldest first) in the API contract. */
 export interface ReportDto {
   id: string;
   title: string;
@@ -98,7 +119,7 @@ export interface ReportDto {
   resolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  statusHistory: never[];
+  statusHistory: StatusHistoryDto[];
 }
 
 /** `ReportSummary` in the API contract. */
@@ -113,6 +134,20 @@ export interface ReportSummaryDto {
   createdAt: string;
 }
 
+export function toReportMediaDto(m: ReportMediaRecord): ReportMediaDto {
+  return {
+    id: m.id,
+    purpose: m.purpose,
+    mediaType: m.mediaType,
+    url: m.url,
+    mimeType: m.mimeType,
+    sizeBytes: m.sizeBytes,
+    width: m.width,
+    height: m.height,
+    createdAt: m.createdAt.toISOString(),
+  };
+}
+
 /** Managers, admins and the author see who reported; other residents don't (docs/features/reports.md §10). */
 export function toReportDto(report: ReportRecord, viewer: ReportViewer): ReportDto {
   const isMine = report.createdBy.id === viewer.userId;
@@ -123,23 +158,14 @@ export function toReportDto(report: ReportRecord, viewer: ReportViewer): ReportD
     category: report.category,
     locationText: report.locationText,
     status: report.status,
-    media: report.media.map((m) => ({
-      id: m.id,
-      purpose: m.purpose,
-      mediaType: m.mediaType,
-      url: m.url,
-      mimeType: m.mimeType,
-      sizeBytes: m.sizeBytes,
-      width: m.width,
-      height: m.height,
-      createdAt: m.createdAt.toISOString(),
-    })),
+    media: report.media.map(toReportMediaDto),
     isMine,
     createdBy: isMine || viewer.role !== "RESIDENT" ? report.createdBy : null,
     resolvedAt: report.resolvedAt?.toISOString() ?? null,
     createdAt: report.createdAt.toISOString(),
     updatedAt: report.updatedAt.toISOString(),
-    statusHistory: [],
+    // Who changed the status is visible to everyone in the society: managers act in the open.
+    statusHistory: report.statusHistory.map((entry) => ({ ...entry, createdAt: entry.createdAt.toISOString() })),
   };
 }
 
