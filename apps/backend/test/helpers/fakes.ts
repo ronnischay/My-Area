@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { EmailMessage, EmailSender } from "../../src/providers/email.provider.js";
 import type { AuthRepository } from "../../src/modules/auth/auth.repository.js";
+import type { MediaRepository } from "../../src/modules/media/media.repository.js";
+import type { MediaStorage } from "../../src/providers/media-storage.js";
 import type { ReportsRepository } from "../../src/modules/reports/reports.repository.js";
 import type {
   MediaPurpose,
@@ -61,6 +63,7 @@ export interface ReportRow {
 export interface ReportMediaRow {
   id: string;
   reportId: string;
+  providerPublicId: string;
   purpose: MediaPurpose;
   mediaType: MediaType;
   url: string;
@@ -312,13 +315,26 @@ export function createFakeReportsRepository(store: InMemoryStore): ReportsReposi
   };
 
   return {
-    async create(input) {
+    async create({ photo, ...input }) {
       if (store.failReportWrites) throw store.failReportWrites;
       // Mirrors reports_created_by_same_society_fk.
       if (store.users.get(input.createdById)?.societyId !== input.societyId) throw new Error("reporter not in society");
       const createdAt = store.nextCreatedAt();
       const report: ReportRow = { id: store.newId(), ...input, status: "OPEN", resolvedAt: null, createdAt, updatedAt: createdAt };
       store.reports.set(report.id, report);
+      store.reportMedia.set(photo.id, {
+        id: photo.id,
+        reportId: report.id,
+        providerPublicId: photo.providerPublicId,
+        purpose: "SUBMISSION",
+        mediaType: photo.mediaType,
+        url: photo.url,
+        mimeType: photo.mimeType,
+        sizeBytes: photo.sizeBytes,
+        width: photo.width,
+        height: photo.height,
+        createdAt,
+      });
       return toRecord(report);
     },
 
@@ -351,6 +367,39 @@ export function createFakeReportsRepository(store: InMemoryStore): ReportsReposi
       return report && report.societyId === societyId ? toRecord(report) : null;
     },
   };
+}
+
+export function createFakeMediaRepository(store: InMemoryStore): MediaRepository {
+  return {
+    async findForSociety(societyId, mediaId) {
+      const media = store.reportMedia.get(mediaId);
+      const report = media ? store.reports.get(media.reportId) : undefined;
+      return media && report?.societyId === societyId ? { providerPublicId: media.providerPublicId, mimeType: media.mimeType } : null;
+    },
+  };
+}
+
+/** Keeps files in memory. Set `failSaveWith` / `failDeleteWith` to simulate a full or broken disk. */
+export class FakeMediaStorage implements MediaStorage {
+  files = new Map<string, Buffer>();
+  deleted: string[] = [];
+  failSaveWith: Error | null = null;
+  failDeleteWith: Error | null = null;
+
+  async save(key: string, bytes: Buffer) {
+    if (this.failSaveWith) throw this.failSaveWith;
+    this.files.set(key, bytes);
+  }
+
+  async read(key: string) {
+    return this.files.get(key) ?? null;
+  }
+
+  async delete(key: string) {
+    this.deleted.push(key);
+    if (this.failDeleteWith) throw this.failDeleteWith;
+    this.files.delete(key);
+  }
 }
 
 /** Records messages instead of sending. Set `failWith` to make the next sends throw. */

@@ -5,10 +5,12 @@ import { createDatabase } from "./db/client.js";
 import { createLogger } from "./lib/logger.js";
 import { createPasswordHasher } from "./lib/password.js";
 import { createAuthRepository } from "./modules/auth/auth.repository.js";
+import { createMediaRepository } from "./modules/media/media.repository.js";
 import { createReportsRepository } from "./modules/reports/reports.repository.js";
 import { createSocietiesRepository } from "./modules/societies/societies.repository.js";
 import { createUsersRepository } from "./modules/users/users.repository.js";
 import { createEmailSender } from "./providers/email.provider.js";
+import { createLocalMediaStorage } from "./providers/media-storage.js";
 
 // The only file that binds a port. Loads apps/backend/.env when present (real env vars take precedence).
 if (existsSync(".env")) process.loadEnvFile(".env");
@@ -31,11 +33,13 @@ const app = createApp({
   logger,
   repositories: {
     auth: createAuthRepository(db),
+    media: createMediaRepository(db),
     reports: createReportsRepository(db),
     societies: createSocietiesRepository(db),
     users: createUsersRepository(db),
   },
   emailSender: createEmailSender(config.email, logger),
+  mediaStorage: createLocalMediaStorage(config.media.uploadDir),
   passwordHasher: createPasswordHasher(),
 });
 

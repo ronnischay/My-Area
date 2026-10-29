@@ -3,7 +3,7 @@ import type { Database } from "../../db/client.js";
 import { containsPattern } from "../../db/like.js";
 import { reportMedia, reports } from "../../db/schema/index.js";
 import { offsetOf } from "../../lib/pagination.js";
-import type { ReportCategory, ReportRecord, ReportStatus, ReportSummaryRecord } from "./reports.types.js";
+import type { MediaType, ReportCategory, ReportRecord, ReportStatus, ReportSummaryRecord } from "./reports.types.js";
 
 export interface ReportListQuery {
   status?: ReportStatus;
@@ -23,6 +23,21 @@ export interface NewReport {
   description: string;
   category: ReportCategory;
   locationText: string;
+  /** The resident's photo (SUBMISSION). Its file is already in MediaStorage under `providerPublicId`. */
+  photo: NewReportMedia;
+}
+
+export interface NewReportMedia {
+  /** Chosen by the service, because the photo URL contains it. */
+  id: string;
+  mediaType: MediaType;
+  url: string;
+  providerPublicId: string;
+  mimeType: string;
+  sizeBytes: number;
+  width: number;
+  height: number;
+  originalFilename: string | null;
 }
 
 /**
@@ -30,6 +45,7 @@ export interface NewReport {
  * from another society behaves exactly like an id that doesn't exist (docs/DATABASE.md §2).
  */
 export interface ReportsRepository {
+  /** One transaction: the report and its photo row are saved together or not at all. */
   create(input: NewReport): Promise<ReportRecord>;
   list(societyId: string, query: ReportListQuery): Promise<{ items: ReportSummaryRecord[]; total: number }>;
   findById(societyId: string, reportId: string): Promise<ReportRecord | null>;
@@ -54,10 +70,14 @@ export function createReportsRepository(db: Database): ReportsRepository {
   return {
     findById,
 
-    async create(input) {
-      const [row] = await db.insert(reports).values(input).returning({ id: reports.id });
-      if (!row) throw new Error("report insert returned no row");
-      const report = await findById(input.societyId, row.id);
+    async create({ photo, ...input }) {
+      const reportId = await db.transaction(async (tx) => {
+        const [row] = await tx.insert(reports).values(input).returning({ id: reports.id });
+        if (!row) throw new Error("report insert returned no row");
+        await tx.insert(reportMedia).values({ ...photo, reportId: row.id, purpose: "SUBMISSION", uploadedById: input.createdById });
+        return row.id;
+      });
+      const report = await findById(input.societyId, reportId);
       if (!report) throw new Error("report not found after insert");
       return report;
     },

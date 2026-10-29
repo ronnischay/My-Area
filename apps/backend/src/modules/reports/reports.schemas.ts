@@ -34,5 +34,10 @@ export const ListReportsQuerySchema = PaginationQuerySchema.extend({
   sort: z.enum(["newest", "oldest"]).default("newest"),
 });
 
+/** The text fields plus the multipart file; reports a missing photo together with any field errors. */
+export const CreateReportFormSchema = CreateReportBodySchema.extend({
+  photo: z.custom<Express.Multer.File>((file) => file !== undefined && file !== null, "Add a photo of the problem"),
+});
+
 export type CreateReportInput = z.output<typeof CreateReportBodySchema>;
 export type ListReportsQuery = z.output<typeof ListReportsQuerySchema>;

@@ -88,7 +88,7 @@ export function addReport(
   return report;
 }
 
-/** A Cloudinary-style photo row for `reportId` (Phase 4 fills these for real). */
+/** A photo row for `reportId`. The file itself is not stored; put bytes in FakeMediaStorage if a test reads it. */
 export function addReportMedia(
   store: InMemoryStore,
   options: Pick<ReportMediaRow, "reportId"> & Partial<ReportMediaRow>,
@@ -96,9 +96,10 @@ export function addReportMedia(
   const id = store.newId();
   const media: ReportMediaRow = {
     id,
+    providerPublicId: `reports/${id}.jpg`,
     purpose: "SUBMISSION",
     mediaType: "IMAGE",
-    url: `https://res.cloudinary.com/demo/image/upload/myarea/test/${id}.jpg`,
+    url: `/api/media/${id}`,
     mimeType: "image/jpeg",
     sizeBytes: 245_000,
     width: 1200,

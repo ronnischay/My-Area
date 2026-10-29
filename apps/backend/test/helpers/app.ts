@@ -5,10 +5,12 @@ import type { Logger } from "../../src/lib/logger.js";
 import { fastPasswordHasher } from "./factories.js";
 import {
   createFakeAuthRepository,
+  createFakeMediaRepository,
   createFakeReportsRepository,
   createFakeSocietiesRepository,
   createFakeUsersRepository,
   FakeEmailSender,
+  FakeMediaStorage,
   InMemoryStore,
 } from "./fakes.js";
 
@@ -21,6 +23,8 @@ export const testConfig: AppConfig = {
   databaseUrl: "postgres://test@localhost:5432/unused",
   appUrl: "http://localhost:3000",
   email: { provider: "console", from: "MyArea <no-reply@test.local>" },
+  // Never written to in HTTP tests; media storage is FakeMediaStorage.
+  media: { storage: "local", uploadDir: "/nonexistent/myarea-test-uploads" },
 };
 
 /** A logger whose methods are spies, so tests can assert on (and silence) log output. */
@@ -49,18 +53,21 @@ export function createTestApp(overrides: Partial<AppConfig> = {}) {
   const store = new InMemoryStore();
   const clock = createTestClock();
   const emailSender = new FakeEmailSender();
+  const mediaStorage = new FakeMediaStorage();
   const app = createApp({
     config: { ...testConfig, ...overrides },
     logger,
     repositories: {
       auth: createFakeAuthRepository(store),
+      media: createFakeMediaRepository(store),
       reports: createFakeReportsRepository(store),
       societies: createFakeSocietiesRepository(store),
       users: createFakeUsersRepository(store),
     },
     emailSender,
+    mediaStorage,
     passwordHasher: fastPasswordHasher,
     clock: () => clock.now,
   });
-  return { app, logger, store, clock, emailSender };
+  return { app, logger, store, clock, emailSender, mediaStorage };
 }

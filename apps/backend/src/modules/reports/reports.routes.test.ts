@@ -2,6 +2,8 @@ import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createTestApp } from "../../../test/helpers/app.js";
 import { addReport, addReportMedia, addSociety, addUser, sessionCookie } from "../../../test/helpers/factories.js";
+import { GPS_MARKER, makeJpeg, makePng, makeWebp } from "../../../test/helpers/images.js";
+import { MAX_PHOTO_BYTES } from "../media/media.constants.js";
 
 /** Two societies. Green Park has an admin, a manager and two residents; Lake View has one resident. */
 async function setup() {
@@ -39,6 +41,19 @@ const pothole = {
   locationText: "Gate 2, service road",
 };
 
+/** A multipart POST /api/reports with the given text fields and (optionally) a photo. */
+function postReport(
+  app: Parameters<typeof request>[0],
+  cookie: string,
+  fields: Record<string, string> = pothole,
+  photo: { bytes: Buffer; filename?: string; contentType?: string } | null = { bytes: makeJpeg({ orientation: 6 }) },
+) {
+  const req = request(app).post("/api/reports").set("Cookie", cookie);
+  for (const [name, value] of Object.entries(fields)) req.field(name, value);
+  if (photo) req.attach("photo", photo.bytes, { filename: photo.filename ?? "IMG_2041.jpg", contentType: photo.contentType ?? "image/jpeg" });
+  return req;
+}
+
 describe("access to /api/reports", () => {
   it("needs a session and a society", async () => {
     const { app, store, clock } = await setup();
@@ -61,76 +76,193 @@ describe("access to /api/reports", () => {
 });
 
 describe("POST /api/reports", () => {
-  it("creates an OPEN report in the caller's society, ignoring society and author in the body", async () => {
-    const { app, store, asMeera, meera, greenPark, lakeView, neha } = await setup();
+  it("creates an OPEN report with its photo in the caller's society, ignoring society and author in the body", async () => {
+    const { app, store, mediaStorage, asMeera, meera, greenPark, lakeView, neha } = await setup();
 
-    const res = await request(app)
-      .post("/api/reports")
-      .set("Cookie", asMeera)
-      .send({ ...pothole, societyId: lakeView.id, createdById: neha.id, status: "RESOLVED" });
+    const res = await postReport(app, asMeera, { ...pothole, societyId: lakeView.id, createdById: neha.id, status: "RESOLVED" });
 
     expect(res.status).toBe(201);
     expect(res.headers["cache-control"]).toBe("no-store");
+    const photoId = res.body.data.media[0]?.id;
     expect(res.body.data).toMatchObject({
       title: "Pothole outside Gate 2",
       category: "ROADS",
       locationText: "Gate 2, service road",
       status: "OPEN",
-      media: [],
       isMine: true,
       createdBy: { id: meera.id, name: "Meera Iyer" },
       resolvedAt: null,
       statusHistory: [],
     });
+    // A 1200×900 photo taken in portrait (orientation 6) is shown 900 wide, 1200 high.
+    expect(res.body.data.media).toEqual([
+      {
+        id: photoId,
+        purpose: "SUBMISSION",
+        mediaType: "IMAGE",
+        url: `/api/media/${photoId}`,
+        mimeType: "image/jpeg",
+        sizeBytes: expect.any(Number),
+        width: 900,
+        height: 1200,
+        createdAt: expect.any(String),
+      },
+    ]);
     expect(res.body.data).not.toHaveProperty("societyId");
 
     const saved = store.reports.get(res.body.data.id);
     expect(saved).toMatchObject({ societyId: greenPark.id, createdById: meera.id, status: "OPEN" });
+
+    // The stored file is the cleaned photo: no GPS, same size as reported.
+    const stored = mediaStorage.files.get(`reports/${photoId}.jpg`);
+    expect(stored).toBeDefined();
+    expect(stored!.includes(Buffer.from(GPS_MARKER))).toBe(false);
+    expect(stored!.length).toBe(res.body.data.media[0].sizeBytes);
   });
 
-  it("returns field errors and saves nothing for invalid input", async () => {
-    const { app, store, asMeera } = await setup();
+  it("accepts PNG and WebP photos", async () => {
+    const { app, asMeera, mediaStorage } = await setup();
+    const png = await postReport(app, asMeera, pothole, { bytes: makePng(), filename: "map.png", contentType: "image/png" });
+    const webp = await postReport(app, asMeera, pothole, { bytes: makeWebp(), filename: "gate.webp", contentType: "image/webp" });
 
-    const res = await request(app)
-      .post("/api/reports")
-      .set("Cookie", asMeera)
-      .send({ title: "Hole", description: "   short   ", category: "POTHOLES" });
+    expect(png.status).toBe(201);
+    expect(png.body.data.media[0]).toMatchObject({ mimeType: "image/png", width: 640, height: 480 });
+    expect(webp.status).toBe(201);
+    expect(webp.body.data.media[0]).toMatchObject({ mimeType: "image/webp", width: 800, height: 600 });
+    expect([...mediaStorage.files.keys()].map((key) => key.split(".").pop()).sort()).toEqual(["png", "webp"]);
+  });
+
+  it("returns field errors, including a missing photo, and saves nothing", async () => {
+    const { app, store, mediaStorage, asMeera } = await setup();
+
+    const res = await postReport(app, asMeera, { title: "Hole", description: "   short   ", category: "POTHOLES" }, null);
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
-    expect(Object.keys(res.body.error.details.fieldErrors).sort()).toEqual(["category", "description", "locationText", "title"]);
+    expect(Object.keys(res.body.error.details.fieldErrors).sort()).toEqual(["category", "description", "locationText", "photo", "title"]);
+    expect(res.body.error.details.fieldErrors.photo).toEqual(["Add a photo of the problem"]);
     expect(store.reports.size).toBe(0);
+    expect(mediaStorage.files.size).toBe(0);
   });
 
-  it("rejects text over the limits", async () => {
-    const { app, asMeera } = await setup();
-    const res = await request(app)
-      .post("/api/reports")
-      .set("Cookie", asMeera)
-      .send({ ...pothole, title: "x".repeat(121), description: "y".repeat(2001), locationText: "z".repeat(256) });
+  it("doesn't store the photo when the text fields are invalid", async () => {
+    const { app, store, mediaStorage, asMeera } = await setup();
+    const res = await postReport(app, asMeera, { ...pothole, title: "x".repeat(121), description: "y".repeat(2001), locationText: "z".repeat(256) });
 
     expect(res.status).toBe(400);
     expect(Object.keys(res.body.error.details.fieldErrors).sort()).toEqual(["description", "locationText", "title"]);
+    expect(store.reports.size).toBe(0);
+    expect(mediaStorage.files.size).toBe(0);
   });
 
-  it("returns a generic 500 when the database write fails", async () => {
-    const { app, store, logger, asMeera } = await setup();
+  it("requires multipart: a JSON body has no photo", async () => {
+    const { app, asMeera } = await setup();
+    const res = await request(app).post("/api/reports").set("Cookie", asMeera).send(pothole);
+    expect(res.status).toBe(400);
+    expect(Object.keys(res.body.error.details.fieldErrors)).toEqual(["photo"]);
+  });
+
+  it("rejects a photo over 5 MB with 413", async () => {
+    const { app, store, asMeera } = await setup();
+    const big = Buffer.concat([makeJpeg(), Buffer.alloc(MAX_PHOTO_BYTES)]);
+
+    const res = await postReport(app, asMeera, pothole, { bytes: big });
+
+    expect(res.status).toBe(413);
+    expect(res.body.error).toMatchObject({ code: "FILE_TOO_LARGE", details: { fieldErrors: { photo: ["The photo must be 5 MB or smaller."] } } });
+    expect(store.reports.size).toBe(0);
+  });
+
+  it("rejects unsupported types and files whose content doesn't match their type with 415", async () => {
+    const { app, store, mediaStorage, asMeera } = await setup();
+    const cases = [
+      { bytes: Buffer.from("GIF89a\x01\x00\x01\x00", "latin1"), filename: "a.gif", contentType: "image/gif" },
+      { bytes: makePng(), filename: "renamed.jpg", contentType: "image/jpeg" },
+      { bytes: Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>"), filename: "x.jpg", contentType: "image/jpeg" },
+      { bytes: Buffer.from("%PDF-1.7"), filename: "doc.pdf", contentType: "application/pdf" },
+    ];
+
+    for (const photo of cases) {
+      const res = await postReport(app, asMeera, pothole, photo);
+      expect(res.status, photo.filename).toBe(415);
+      expect(res.body.error.code).toBe("UNSUPPORTED_MEDIA_TYPE");
+      expect(res.body.error.details.fieldErrors.photo).toEqual(["Use a JPEG, PNG or WebP photo."]);
+    }
+    expect(store.reports.size).toBe(0);
+    expect(mediaStorage.files.size).toBe(0);
+  });
+
+  it("rejects a damaged image with a field error", async () => {
+    const { app, mediaStorage, asMeera } = await setup();
+    const res = await postReport(app, asMeera, pothole, { bytes: makeJpeg().subarray(0, 60) });
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.fieldErrors.photo).toEqual(["This photo seems damaged. Try another one."]);
+    expect(mediaStorage.files.size).toBe(0);
+  });
+
+  it("accepts exactly one file in the photo field", async () => {
+    const { app, asMeera } = await setup();
+    const two = postReport(app, asMeera).attach("photo", makeJpeg(), { filename: "b.jpg", contentType: "image/jpeg" });
+    const wrongField = request(app)
+      .post("/api/reports")
+      .set("Cookie", asMeera)
+      .field(pothole)
+      .attach("picture", makeJpeg(), { filename: "a.jpg", contentType: "image/jpeg" });
+
+    for (const res of [await two, await wrongField]) {
+      expect(res.status).toBe(400);
+      expect(res.body.error.details.fieldErrors.photo).toEqual(["Attach one photo."]);
+    }
+  });
+
+  it("returns 502 and saves nothing when the photo can't be stored", async () => {
+    const { app, store, mediaStorage, logger, asMeera } = await setup();
+    mediaStorage.failSaveWith = new Error("ENOSPC: no space left on device, open '/srv/uploads/reports/x.jpg'");
+
+    const res = await postReport(app, asMeera);
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatchObject({
+      code: "MEDIA_UPLOAD_FAILED",
+      message: "We couldn't save your photo, so nothing was submitted. Please try again.",
+    });
+    expect(JSON.stringify(res.body)).not.toMatch(/ENOSPC|srv/);
+    expect(logger.error).toHaveBeenCalled();
+    expect(store.reports.size).toBe(0);
+  });
+
+  it("returns a generic 500 and deletes the stored photo when the database write fails", async () => {
+    const { app, store, mediaStorage, logger, asMeera } = await setup();
     store.failReportWrites = new Error('connection to "db.internal:5432" refused, password=hunter2');
 
-    const res = await request(app).post("/api/reports").set("Cookie", asMeera).send(pothole);
+    const res = await postReport(app, asMeera);
 
     expect(res.status).toBe(500);
     expect(res.body.error).toMatchObject({ code: "INTERNAL_ERROR", message: "Something went wrong. Please try again later." });
     expect(JSON.stringify(res.body)).not.toMatch(/db\.internal|hunter2/);
     expect(logger.error).toHaveBeenCalled();
     expect(store.reports.size).toBe(0);
+    expect(mediaStorage.deleted).toHaveLength(1);
+    expect(mediaStorage.files.size).toBe(0);
   });
 
-  it("refuses a cross-site request", async () => {
-    const { app, store, asMeera } = await setup();
-    const res = await request(app).post("/api/reports").set("Cookie", asMeera).set("Origin", "https://evil.example").send(pothole);
+  it("still returns the database error when cleaning up the photo also fails", async () => {
+    const { app, store, mediaStorage, logger, asMeera } = await setup();
+    store.failReportWrites = new Error("db down");
+    mediaStorage.failDeleteWith = new Error("EACCES");
+
+    const res = await postReport(app, asMeera);
+
+    expect(res.status).toBe(500);
+    expect(logger.error).toHaveBeenCalledWith("orphaned photo after failed report insert", expect.objectContaining({ key: expect.stringMatching(/^reports\//) }));
+  });
+
+  it("refuses a cross-site request before reading the upload", async () => {
+    const { app, store, mediaStorage, asMeera } = await setup();
+    const res = await postReport(app, asMeera).set("Origin", "https://evil.example");
     expect(res.status).toBe(403);
     expect(store.reports.size).toBe(0);
+    expect(mediaStorage.files.size).toBe(0);
   });
 });
 

@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { insertSociety, insertUser, testDatabaseUrl, useTestDatabase } from "../../../test/helpers/db.js";
 import { reportMedia, reports } from "../../db/schema/index.js";
-import { createReportsRepository } from "./reports.repository.js";
+import { createMediaRepository } from "../media/media.repository.js";
+import { type NewReport, createReportsRepository } from "./reports.repository.js";
 
 const fields = {
   title: "Overflowing bins at Block A",
@@ -11,6 +13,28 @@ const fields = {
 } as const;
 
 const page = { sort: "newest", page: 1, pageSize: 20 } as const;
+
+/** A report with its required photo, as the service builds it. */
+function newReport(societyId: string, createdById: string, overrides: Partial<Omit<NewReport, "photo">> = {}): NewReport {
+  const id = randomUUID();
+  return {
+    ...fields,
+    societyId,
+    createdById,
+    ...overrides,
+    photo: {
+      id,
+      mediaType: "IMAGE",
+      url: `/api/media/${id}`,
+      providerPublicId: `reports/${id}.jpg`,
+      mimeType: "image/jpeg",
+      sizeBytes: 1000,
+      width: 800,
+      height: 600,
+      originalFilename: "IMG_2041.jpg",
+    },
+  };
+}
 
 /** Postgres error code anywhere in the Drizzle cause chain. */
 async function pgErrorCode(promise: Promise<unknown>): Promise<string | undefined> {
@@ -39,55 +63,67 @@ describe.skipIf(!testDatabaseUrl)("reports repository (PostgreSQL)", () => {
     return { greenPark, lakeView, meera, farhan, neha };
   }
 
-  it("creates a report and reads it back with its author and media", async () => {
+  it("creates a report and its photo together and reads them back", async () => {
     const repo = createReportsRepository(db);
     const { greenPark, meera } = await twoSocieties();
+    const input = newReport(greenPark.id, meera.id);
 
-    const created = await repo.create({ ...fields, societyId: greenPark.id, createdById: meera.id });
-    expect(created).toMatchObject({ ...fields, status: "OPEN", resolvedAt: null, media: [], createdBy: { id: meera.id, name: "Meera Iyer" } });
+    const created = await repo.create(input);
 
-    await db.insert(reportMedia).values({
-      reportId: created.id,
-      mediaType: "IMAGE",
-      url: "https://res.cloudinary.com/demo/image/upload/a.jpg",
-      providerPublicId: "myarea/test/a",
-      mimeType: "image/jpeg",
-      sizeBytes: 1000,
-      width: 800,
-      height: 600,
-      uploadedById: meera.id,
-    });
+    expect(created).toMatchObject({ ...fields, status: "OPEN", resolvedAt: null, createdBy: { id: meera.id, name: "Meera Iyer" } });
+    expect(created.media).toEqual([
+      expect.objectContaining({ id: input.photo.id, purpose: "SUBMISSION", url: input.photo.url, width: 800, height: 600 }),
+    ]);
+    // Storage key and original filename stay server-side.
+    expect(created.media[0]).not.toHaveProperty("providerPublicId");
+    expect(created.media[0]).not.toHaveProperty("originalFilename");
+    const [row] = await db.select().from(reportMedia);
+    expect(row).toMatchObject({ uploadedById: meera.id, originalFilename: "IMG_2041.jpg" });
+  });
 
-    const found = await repo.findById(greenPark.id, created.id);
-    expect(found?.media).toEqual([expect.objectContaining({ purpose: "SUBMISSION", width: 800, height: 600 })]);
-    expect(found?.media[0]).not.toHaveProperty("providerPublicId");
+  it("saves nothing when the photo row fails (one transaction)", async () => {
+    const repo = createReportsRepository(db);
+    const { greenPark, meera } = await twoSocieties();
+    const first = newReport(greenPark.id, meera.id);
+    await repo.create(first);
+
+    // Same storage key → report_media_provider_public_id_uq fails after the report row was inserted.
+    const clash = newReport(greenPark.id, meera.id, { title: "Second report" });
+    clash.photo.providerPublicId = first.photo.providerPublicId;
+    expect(await pgErrorCode(repo.create(clash))).toBe("23505");
+
+    expect(await db.select().from(reports)).toHaveLength(1);
+    expect(await db.select().from(reportMedia)).toHaveLength(1);
   });
 
   it("never reads across societies", async () => {
     const repo = createReportsRepository(db);
+    const media = createMediaRepository(db);
     const { greenPark, lakeView, meera, neha } = await twoSocieties();
-    const ours = await repo.create({ ...fields, societyId: greenPark.id, createdById: meera.id });
-    await repo.create({ ...fields, title: "Lift stuck on floor 3", societyId: lakeView.id, createdById: neha.id });
+    const ours = await repo.create(newReport(greenPark.id, meera.id));
+    await repo.create(newReport(lakeView.id, neha.id, { title: "Lift stuck on floor 3" }));
 
     expect(await repo.findById(lakeView.id, ours.id)).toBeNull();
     const list = await repo.list(greenPark.id, page);
     expect(list.total).toBe(1);
     expect(list.items.map((r) => r.id)).toEqual([ours.id]);
+
+    const photoId = ours.media[0]!.id;
+    expect(await media.findForSociety(greenPark.id, photoId)).toEqual({
+      providerPublicId: `reports/${photoId}.jpg`,
+      mimeType: "image/jpeg",
+    });
+    expect(await media.findForSociety(lakeView.id, photoId)).toBeNull();
   });
 
   it("filters, searches literally, sorts and counts", async () => {
     const repo = createReportsRepository(db);
     const { greenPark, meera, farhan } = await twoSocieties();
-    const bins = await repo.create({ ...fields, societyId: greenPark.id, createdById: meera.id });
-    const light = await repo.create({
-      ...fields,
-      title: "Light flickering",
-      category: "STREETLIGHTS",
-      locationText: "Clubhouse 50% corridor",
-      societyId: greenPark.id,
-      createdById: farhan.id,
-    });
-    const swing = await repo.create({ ...fields, title: "Broken swing", category: "PARKS", societyId: greenPark.id, createdById: farhan.id });
+    const bins = await repo.create(newReport(greenPark.id, meera.id));
+    const light = await repo.create(
+      newReport(greenPark.id, farhan.id, { title: "Light flickering", category: "STREETLIGHTS", locationText: "Clubhouse 50% corridor" }),
+    );
+    const swing = await repo.create(newReport(greenPark.id, farhan.id, { title: "Broken swing", category: "PARKS" }));
 
     const ids = async (query: Partial<Parameters<typeof repo.list>[1]>) =>
       (await repo.list(greenPark.id, { ...page, ...query })).items.map((r) => r.id);
@@ -106,25 +142,24 @@ describe.skipIf(!testDatabaseUrl)("reports repository (PostgreSQL)", () => {
     expect(page2.items.map((r) => r.id)).toEqual([bins.id]);
   });
 
-  it("uses the first SUBMISSION photo as the thumbnail", async () => {
+  it("uses the submission photo as the thumbnail, never a resolution photo", async () => {
     const repo = createReportsRepository(db);
     const { greenPark, meera } = await twoSocieties();
-    const report = await repo.create({ ...fields, societyId: greenPark.id, createdById: meera.id });
-    const media = (n: string, purpose: "SUBMISSION" | "RESOLUTION") => ({
+    const input = newReport(greenPark.id, meera.id);
+    const report = await repo.create(input);
+    await db.insert(reportMedia).values({
       reportId: report.id,
-      purpose,
-      mediaType: "IMAGE" as const,
-      url: `https://res.cloudinary.com/demo/image/upload/${n}.jpg`,
-      providerPublicId: `myarea/test/${n}`,
+      purpose: "RESOLUTION",
+      mediaType: "IMAGE",
+      url: "/api/media/resolution",
+      providerPublicId: "reports/resolution.jpg",
       mimeType: "image/jpeg",
       sizeBytes: 1000,
       uploadedById: meera.id,
     });
-    await db.insert(reportMedia).values(media("resolution", "RESOLUTION"));
-    await db.insert(reportMedia).values(media("submission", "SUBMISSION"));
 
     const [item] = (await repo.list(greenPark.id, page)).items;
-    expect(item?.thumbnailUrl).toBe("https://res.cloudinary.com/demo/image/upload/submission.jpg");
+    expect(item?.thumbnailUrl).toBe(input.photo.url);
   });
 
   it("enforces the schema rules in the database", async () => {
@@ -132,7 +167,7 @@ describe.skipIf(!testDatabaseUrl)("reports repository (PostgreSQL)", () => {
     const { greenPark, meera, neha } = await twoSocieties();
 
     // reports_created_by_same_society_fk: a reporter from another society is rejected (23503).
-    expect(await pgErrorCode(repo.create({ ...fields, societyId: greenPark.id, createdById: neha.id }))).toBe("23503");
+    expect(await pgErrorCode(repo.create(newReport(greenPark.id, neha.id)))).toBe("23503");
 
     const base = { ...fields, societyId: greenPark.id, createdById: meera.id };
     // reports_resolved_at_ck: RESOLVED needs resolved_at, and only RESOLVED may have it (23514).
@@ -143,36 +178,25 @@ describe.skipIf(!testDatabaseUrl)("reports repository (PostgreSQL)", () => {
     // Unknown enum value (22P02).
     expect(await pgErrorCode(db.insert(reports).values({ ...base, category: "POTHOLES" as "ROADS" }))).toBe("22P02");
 
-    const report = await repo.create(base);
+    const report = await repo.create(newReport(greenPark.id, meera.id));
     const media = {
       reportId: report.id,
       mediaType: "IMAGE" as const,
-      url: "https://res.cloudinary.com/demo/image/upload/a.jpg",
-      providerPublicId: "myarea/test/a",
+      url: "/api/media/x",
+      providerPublicId: "reports/x.jpg",
       mimeType: "image/jpeg",
       sizeBytes: 1000,
       uploadedById: meera.id,
     };
-    // report_media_size_bytes_ck and report_media_dimensions_ck (23514), provider id unique (23505).
+    // report_media_size_bytes_ck and report_media_dimensions_ck (23514).
     expect(await pgErrorCode(db.insert(reportMedia).values({ ...media, sizeBytes: 0 }))).toBe("23514");
     expect(await pgErrorCode(db.insert(reportMedia).values({ ...media, width: 0 }))).toBe("23514");
-    await db.insert(reportMedia).values(media);
-    expect(await pgErrorCode(db.insert(reportMedia).values(media))).toBe("23505");
   });
 
   it("deletes a report's media with the report", async () => {
     const repo = createReportsRepository(db);
     const { greenPark, meera } = await twoSocieties();
-    const report = await repo.create({ ...fields, societyId: greenPark.id, createdById: meera.id });
-    await db.insert(reportMedia).values({
-      reportId: report.id,
-      mediaType: "IMAGE",
-      url: "https://res.cloudinary.com/demo/image/upload/a.jpg",
-      providerPublicId: "myarea/test/a",
-      mimeType: "image/jpeg",
-      sizeBytes: 1000,
-      uploadedById: meera.id,
-    });
+    await repo.create(newReport(greenPark.id, meera.id));
 
     await db.delete(reports);
     expect(await db.select().from(reportMedia)).toEqual([]);

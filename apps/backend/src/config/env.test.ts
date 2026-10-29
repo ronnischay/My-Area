@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigError, loadConfig } from "./env.js";
 
@@ -23,7 +24,13 @@ describe("loadConfig", () => {
       databaseUrl: DATABASE_URL,
       appUrl: "http://localhost:3000",
       email: { provider: "console", from: "MyArea <no-reply@localhost>" },
+      media: { storage: "local", uploadDir: resolve("uploads") },
     });
+  });
+
+  it("resolves UPLOAD_DIR to an absolute path", () => {
+    expect(loadConfig({ DATABASE_URL, UPLOAD_DIR: "/var/lib/myarea/uploads" }).media.uploadDir).toBe("/var/lib/myarea/uploads");
+    expect(loadConfig({ DATABASE_URL, UPLOAD_DIR: "data/photos" }).media.uploadDir).toBe(resolve("data/photos"));
   });
 
   it("requires DATABASE_URL", () => {

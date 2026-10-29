@@ -2,15 +2,17 @@ import type { RequestHandler } from "express";
 import { paginationMeta } from "../../lib/pagination.js";
 import { IdParamSchema, parseInput } from "../../lib/validation.js";
 import { getSocietyAuth } from "../../middleware/require-society.js";
-import { CreateReportBodySchema, ListReportsQuerySchema } from "./reports.schemas.js";
+import { preparePhoto } from "../media/media.validation.js";
+import { CreateReportFormSchema, ListReportsQuerySchema } from "./reports.schemas.js";
 import type { ReportsService } from "./reports.service.js";
 import { toReportDto, toReportSummaryDto } from "./reports.types.js";
 
 export function createReportsController({ service }: { service: ReportsService }) {
   const create: RequestHandler = async (req, res) => {
-    const input = parseInput(CreateReportBodySchema, req.body);
+    const { photo, ...input } = parseInput(CreateReportFormSchema, { ...req.body, photo: req.file });
     const auth = getSocietyAuth(req);
-    res.status(201).json({ data: toReportDto(await service.create(auth, input), auth) });
+    const report = await service.create(auth, input, preparePhoto(photo));
+    res.status(201).json({ data: toReportDto(report, auth) });
   };
 
   const list: RequestHandler = async (req, res) => {

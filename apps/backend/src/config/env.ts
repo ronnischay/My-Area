@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { z } from "zod";
 
 /**
@@ -42,6 +43,9 @@ const EnvSchema = z
     SMTP_SECURE: booleanString.default(false),
     SMTP_USER: z.string().min(1).optional(),
     SMTP_PASS: z.string().min(1).optional(),
+
+    // Report photos are stored on this server's disk (D021). Relative paths resolve from the working directory.
+    UPLOAD_DIR: z.string().trim().min(1).default("uploads"),
   })
   .superRefine((env, ctx) => {
     if (env.EMAIL_PROVIDER === "console" && env.NODE_ENV === "production") {
@@ -68,6 +72,13 @@ export type EmailConfig =
   | { provider: "console"; from: string }
   | { provider: "smtp"; from: string; smtp: SmtpConfig };
 
+/** Where uploaded photos are kept. Only local disk for now; Cloudinary may be added later (D021). */
+export interface MediaConfig {
+  storage: "local";
+  /** Absolute path. */
+  uploadDir: string;
+}
+
 export interface AppConfig {
   nodeEnv: "development" | "test" | "production";
   port: number;
@@ -76,6 +87,7 @@ export interface AppConfig {
   databaseUrl: string;
   appUrl: string;
   email: EmailConfig;
+  media: MediaConfig;
 }
 
 export class ConfigError extends Error {
@@ -117,5 +129,6 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     databaseUrl: env.DATABASE_URL,
     appUrl: env.APP_URL,
     email,
+    media: { storage: "local", uploadDir: resolve(env.UPLOAD_DIR) },
   };
 }

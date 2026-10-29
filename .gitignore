@@ -22,6 +22,9 @@ next-env.d.ts
 # Tests
 coverage/
 
+# Uploaded report photos (local media storage, D021)
+apps/backend/uploads/
+
 # Logs
 npm-debug.log*
 *.log
