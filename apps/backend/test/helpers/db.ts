@@ -14,7 +14,7 @@ export function useTestDatabase(): Database {
   const { db, pool } = createDatabase(testDatabaseUrl);
 
   beforeEach(async () => {
-    await db.execute(sql`TRUNCATE report_media, reports, sessions, user_invites, users, societies RESTART IDENTITY CASCADE`);
+    await db.execute(sql`TRUNCATE report_status_history, report_media, reports, sessions, user_invites, users, societies RESTART IDENTITY CASCADE`);
   });
   afterAll(async () => {
     await pool.end();

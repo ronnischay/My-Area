@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import { reportMedia } from "./report-media.js";
+import { reportStatusHistory } from "./report-status-history.js";
 import { reports } from "./reports.js";
 import { sessions } from "./sessions.js";
 import { societies } from "./societies.js";
@@ -30,9 +31,15 @@ export const reportsRelations = relations(reports, ({ one, many }) => ({
   society: one(societies, { fields: [reports.societyId], references: [societies.id] }),
   createdBy: one(users, { fields: [reports.createdById], references: [users.id] }),
   media: many(reportMedia),
+  statusHistory: many(reportStatusHistory),
 }));
 
 export const reportMediaRelations = relations(reportMedia, ({ one }) => ({
   report: one(reports, { fields: [reportMedia.reportId], references: [reports.id] }),
   uploadedBy: one(users, { fields: [reportMedia.uploadedById], references: [users.id] }),
+}));
+
+export const reportStatusHistoryRelations = relations(reportStatusHistory, ({ one }) => ({
+  report: one(reports, { fields: [reportStatusHistory.reportId], references: [reports.id] }),
+  changedBy: one(users, { fields: [reportStatusHistory.changedById], references: [users.id] }),
 }));

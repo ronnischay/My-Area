@@ -15,6 +15,13 @@
       "when": 1793209374033,
       "tag": "0001_create_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793268773685,
+      "tag": "0002_create_report_status_history",
+      "breakpoints": true
     }
   ]
 }
