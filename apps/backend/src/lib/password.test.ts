@@ -30,7 +30,12 @@ describe("password hasher", () => {
 
   it("returns false instead of throwing for malformed or tampered hashes", async () => {
     const stored = await hasher.hash("password one");
-    const tampered = stored.replace(/.$/, (c) => (c === "A" ? "B" : "A"));
+    // Change the first character of the key: always real data. (The last base64 character can be only
+    // padding bits, so changing it may decode to the same key.)
+    const parts = stored.split("$");
+    const key = parts[5] ?? "";
+    parts[5] = (key[0] === "A" ? "B" : "A") + key.slice(1);
+    const tampered = parts.join("$");
 
     expect(await hasher.verify("password one", tampered)).toBe(false);
     expect(await hasher.verify("password one", "not-a-hash")).toBe(false);
