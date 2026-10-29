@@ -8,6 +8,13 @@
       "when": 1793190800918,
       "tag": "0000_create_auth_and_societies",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793209374033,
+      "tag": "0001_create_reports",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { type AnyPgColumn, check, index, pgTable, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
+import { type AnyPgColumn, check, index, pgTable, timestamp, unique, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 import { userRole, userStatus } from "./enums.js";
 import { societies } from "./societies.js";
 
@@ -27,6 +27,8 @@ export const users = pgTable(
   (t) => [
     uniqueIndex("users_email_uq").on(t.email),
     index("users_society_id_role_idx").on(t.societyId, t.role),
+    // Target of reports_created_by_same_society_fk (a reporter must be in the report's society).
+    unique("users_society_id_id_uq").on(t.societyId, t.id),
     check("users_society_required_ck", sql`${t.role} = 'ADMIN' OR ${t.societyId} IS NOT NULL`),
     check("users_active_has_password_ck", sql`${t.status} <> 'ACTIVE' OR ${t.passwordHash} IS NOT NULL`),
   ],
