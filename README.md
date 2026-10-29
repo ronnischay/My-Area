@@ -15,7 +15,7 @@ A society admin sets up their residential society and invites residents and mana
 | Auth | Email + password (scrypt), DB sessions in an httpOnly cookie, roles Admin/Manager/Resident, invite-only |
 | Media | Report photos on the server's disk (`UPLOAD_DIR`), metadata stripped, served only to the society's members (multer upload) |
 | Email | SMTP via nodemailer (console sender for local dev): invites, and a new-report email to the society's managers (admins if none), sent after the response |
-| Design | "Courtyard": Bricolage Grotesque + Figtree, light default + dark toggle *(Phase 6)* |
+| Design | "Courtyard": Bricolage Grotesque + Figtree, brand green `#07ab12` (`#057a0d` for white-text buttons/links), light default + dark toggle |
 | Tests | Vitest 5 · React Testing Library · Supertest |
 
 ## Repository layout
@@ -41,7 +41,7 @@ Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 nvm use                                                   # Node 24
 npm install                                               # from repo root; one lockfile for all workspaces
 cp apps/backend/.env.example apps/backend/.env            # then set DATABASE_URL / DATABASE_URL_TEST (your macOS user name)
-cp apps/frontend/.env.example apps/frontend/.env.local    # NEXT_PUBLIC_API_BASE_URL
+cp apps/frontend/.env.example apps/frontend/.env.local    # API_BASE_URL (server-only)
 npm run db:migrate -w backend                             # create the tables in myarea_dev
 DATABASE_URL=postgres://$USER@localhost:5432/myarea_test npm run db:migrate -w backend   # and in the test DB
 npm run user:create-admin -w backend -- --email you@example.com --name "Your Name"     # asks for a password
@@ -51,7 +51,7 @@ npm run dev                                               # backend http://local
 Check it's working: `curl localhost:4000/health` returns `{"status":"ok"}`, and http://localhost:3000 shows the home page.
 The backend refuses to start without `DATABASE_URL`. All other variables have local defaults; see `apps/backend/.env.example`.
 
-Until the UI exists (Phase 6), use the API directly: sign in with `POST /api/auth/login`, create your society with `POST /api/societies`, and invite members with `POST /api/admin/users` ([`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)). With `EMAIL_PROVIDER=console`, the invite link appears in the backend log. Reports: `POST /api/reports` (multipart: `title`, `description`, `category`, `locationText` and one `photo`, JPEG/PNG/WebP up to 5 MB), `GET /api/reports`, `GET /api/reports/:id`; photos are served at `GET /api/media/:id` to signed-in members of the report's society.
+Open http://localhost:3000 and sign in. A new admin is taken to society setup first. Screens not built yet (members, reports) can be used through the API ([`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)). With `EMAIL_PROVIDER=console`, the invite link appears in the backend log. Reports: `POST /api/reports` (multipart: `title`, `description`, `category`, `locationText` and one `photo`, JPEG/PNG/WebP up to 5 MB), `GET /api/reports`, `GET /api/reports/:id`; photos are served at `GET /api/media/:id` to signed-in members of the report's society.
 
 For demo data, run `npm run db:seed -w backend`. It adds the society "Green Park Residency" with an admin (`asha.rao@greenpark.example`), a manager (`rohit.sharma@greenpark.example`), two residents (`meera.iyer@…`, `farhan.qureshi@…`) and 10 reports. All four sign in with the `SEED_PASSWORD` from `apps/backend/.env`. Running it again changes nothing.
 
@@ -77,7 +77,7 @@ Production-style run: `npm run build` then `npm run start -w backend` and `npm r
 ## Environment
 Each app has its own committed `.env.example` with placeholders: [`apps/backend/.env.example`](apps/backend/.env.example) and [`apps/frontend/.env.example`](apps/frontend/.env.example). Variables for later phases are listed commented out. What each variable does is in [`docs/ARCHITECTURE.md §7`](docs/ARCHITECTURE.md#7-environment-variables).
 
-- Secrets are **backend-only** and live in the git-ignored `apps/backend/.env` (`DATABASE_URL`, `SMTP_USER`, `SMTP_PASS`). Defaults in code are public local-dev values only. The frontend reads only `NEXT_PUBLIC_API_BASE_URL`, which is public and inlined at build time.
+- Secrets are **backend-only** and live in the git-ignored `apps/backend/.env` (`DATABASE_URL`, `SMTP_USER`, `SMTP_PASS`). Defaults in code are public local-dev values only. The frontend has no `NEXT_PUBLIC_` variables: the browser calls same-origin `/api/*`, which Next.js rewrites to `API_BASE_URL` (server-only, default `http://localhost:4000`). Restart `next dev` after changing it.
 - Demo data: `SEED_PASSWORD` (backend `.env` only) is the password for every account `db:seed` creates.
 - Photos: `UPLOAD_DIR` (default `uploads`, i.e. `apps/backend/uploads/`, git-ignored). Back it up together with the database: a report's photo exists only there.
 - Email: `EMAIL_PROVIDER=console` (default; refused in production) or `smtp` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, plus `EMAIL_FROM` and `APP_URL` (used in invite links).
