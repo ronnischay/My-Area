@@ -51,7 +51,7 @@ npm run dev                                               # backend http://local
 Check it's working: `curl localhost:4000/health` returns `{"status":"ok"}`, and http://localhost:3000 shows the home page.
 The backend refuses to start without `DATABASE_URL`. All other variables have local defaults; see `apps/backend/.env.example`.
 
-Open http://localhost:3000 and sign in. A new admin is taken to society setup first. Screens not built yet (members, reports) can be used through the API ([`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)). With `EMAIL_PROVIDER=console`, the invite link appears in the backend log. Reports: `POST /api/reports` (multipart: `title`, `description`, `category`, `locationText` and one `photo`, JPEG/PNG/WebP up to 5 MB), `GET /api/reports`, `GET /api/reports/:id`; photos are served at `GET /api/media/:id` to signed-in members of the report's society.
+Open http://localhost:3000 and sign in. A new admin is taken to society setup first. Screens not built yet (members, reports) can be used through the API ([`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)). With `EMAIL_PROVIDER=console`, the invite link appears in the backend log. Reports: `POST /api/reports` (multipart: `title`, `description`, `category`, `locationText` and one `photo`, JPEG/PNG/WebP up to 5 MB), `GET /api/reports`, `GET /api/reports/:id`; photos are served at `GET /api/media/:id` to signed-in members of the report's society. Managers and admins change a report's status (`PATCH /api/reports/:id/status`, with a timeline everyone can see), add a resolution photo, and see counts at `/management`.
 
 For demo data, run `npm run db:seed -w backend`. It adds the society "Green Park Residency" with an admin (`asha.rao@greenpark.example`), a manager (`rohit.sharma@greenpark.example`), two residents (`meera.iyer@…`, `farhan.qureshi@…`) and 10 reports. All four sign in with the `SEED_PASSWORD` from `apps/backend/.env`. Running it again changes nothing.
 
@@ -106,6 +106,7 @@ Each app has its own committed `.env.example` with placeholders: [`apps/backend/
 - No map, geocoding or coordinates. Location is free text.
 - One society per admin and per user; members join by invite only; no forgot/change-password yet (see `docs/features/auth.md`).
 - Login rate limiting is in memory (per process, resets on restart).
+- Resolved and Rejected are final; the reporter isn't emailed when the status changes.
 - The theme preference is saved per device, not per account.
 - Photos live on one server's disk (no CDN, no multi-server sharing); seeded demo reports have no photo.
 - The new-report email is attempted once, after the response is sent. A failure is only logged (no retry, no record in the database); managers still see every report in the app.
