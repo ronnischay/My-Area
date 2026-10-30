@@ -13,6 +13,7 @@ const summary: ReportSummary = {
   status: "IN_PROGRESS",
   thumbnailUrl: null,
   isMine: true,
+  voteCount: 3,
   createdAt: "2026-10-28T10:00:00.000Z",
 };
 
@@ -25,6 +26,7 @@ describe("ReportCard", () => {
     expect(screen.getByText("Yours")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "No photo" })).toBeInTheDocument();
     expect(screen.getByText(/Block C main gate/)).toBeInTheDocument();
+    expect(screen.getByText("3")).toHaveTextContent("3 thumbs-ups");
   });
 });
 

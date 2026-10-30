@@ -12,6 +12,8 @@ export type ApiErrorCode =
   | "SOCIETY_REQUIRED"
   | "NOT_FOUND"
   | "INVALID_STATUS_TRANSITION"
+  | "ALREADY_VOTED"
+  | "VOTING_CLOSED"
   | "EMAIL_TAKEN"
   | "SOCIETY_ALREADY_EXISTS"
   | "USER_NOT_INVITED"
@@ -161,6 +163,10 @@ export interface Report {
   isMine: boolean;
   /** Set for MANAGER/ADMIN callers and for the author; null for other residents. */
   createdBy: UserRef | null;
+  /** Thumbs-up count. */
+  voteCount: number;
+  /** The caller has given a thumbs-up. */
+  hasVoted: boolean;
   resolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -176,7 +182,14 @@ export interface ReportSummary {
   status: ReportStatus;
   thumbnailUrl: string | null;
   isMine: boolean;
+  voteCount: number;
   createdAt: string;
+}
+
+/** POST/DELETE /api/reports/:id/votes. */
+export interface VoteState {
+  voteCount: number;
+  hasVoted: boolean;
 }
 
 /**

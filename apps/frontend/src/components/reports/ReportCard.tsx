@@ -5,6 +5,7 @@ import type { ReportSummary } from "@/types/api";
 import { RelativeTime } from "./RelativeTime";
 import { ReportPhoto } from "./ReportPhoto";
 import { StatusBadge } from "./StatusBadge";
+import { ThumbsUpIcon } from "./ThumbsUpIcon";
 
 /** Photo card (UI_UX_GUIDELINES §8): photo with the status badge over it, title, category, location · time. */
 export function ReportCard({ report }: { report: ReportSummary }) {
@@ -26,7 +27,16 @@ export function ReportCard({ report }: { report: ReportSummary }) {
             {report.title}
           </Link>
         </h3>
-        <p className="text-sm font-semibold text-primary">{CATEGORY_LABELS[report.category]}</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-primary">{CATEGORY_LABELS[report.category]}</p>
+          {report.voteCount > 0 && (
+            <p className="inline-flex items-center gap-1 text-sm font-semibold text-fg-muted tabular-nums">
+              <ThumbsUpIcon className="size-4" />
+              {report.voteCount}
+              <span className="sr-only">{report.voteCount === 1 ? " thumbs-up" : " thumbs-ups"}</span>
+            </p>
+          )}
+        </div>
         <p className="mt-auto line-clamp-1 text-sm text-fg-muted">
           {report.locationText} · <RelativeTime iso={report.createdAt} />
         </p>

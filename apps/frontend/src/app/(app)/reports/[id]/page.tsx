@@ -8,6 +8,7 @@ import { ReportPhoto } from "@/components/reports/ReportPhoto";
 import { StatusBadge } from "@/components/reports/StatusBadge";
 import { StatusPanel } from "@/components/reports/StatusPanel";
 import { StatusTimeline } from "@/components/reports/StatusTimeline";
+import { ThumbsUpButton } from "@/components/reports/ThumbsUpButton";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { CATEGORY_LABELS } from "@/lib/reports";
@@ -58,6 +59,12 @@ async function ReportDetail({ params }: Pick<PageProps<"/reports/[id]">, "params
           {report.isMine && <Badge tone="neutral">Your report</Badge>}
         </div>
         <h1 className="font-display text-display font-bold break-words text-fg sm:text-display-lg">{report.title}</h1>
+        <ThumbsUpButton
+          reportId={report.id}
+          initial={{ voteCount: report.voteCount, hasVoted: report.hasVoted }}
+          isMine={report.isMine}
+          closed={report.status === "RESOLVED" || report.status === "REJECTED"}
+        />
         <dl className="grid gap-3 rounded-card border border-border bg-surface p-4">
           <div>
             <dt className="text-sm text-fg-muted">Location</dt>
