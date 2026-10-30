@@ -3,6 +3,7 @@ export * from "./enums.js";
 export * from "./relations.js";
 export * from "./report-media.js";
 export * from "./report-status-history.js";
+export * from "./report-votes.js";
 export * from "./reports.js";
 export * from "./sessions.js";
 export * from "./societies.js";

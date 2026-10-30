@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 import { reportMedia } from "./report-media.js";
 import { reportStatusHistory } from "./report-status-history.js";
+import { reportVotes } from "./report-votes.js";
 import { reports } from "./reports.js";
 import { sessions } from "./sessions.js";
 import { societies } from "./societies.js";
@@ -32,6 +33,7 @@ export const reportsRelations = relations(reports, ({ one, many }) => ({
   createdBy: one(users, { fields: [reports.createdById], references: [users.id] }),
   media: many(reportMedia),
   statusHistory: many(reportStatusHistory),
+  votes: many(reportVotes),
 }));
 
 export const reportMediaRelations = relations(reportMedia, ({ one }) => ({
@@ -42,4 +44,9 @@ export const reportMediaRelations = relations(reportMedia, ({ one }) => ({
 export const reportStatusHistoryRelations = relations(reportStatusHistory, ({ one }) => ({
   report: one(reports, { fields: [reportStatusHistory.reportId], references: [reports.id] }),
   changedBy: one(users, { fields: [reportStatusHistory.changedById], references: [users.id] }),
+}));
+
+export const reportVotesRelations = relations(reportVotes, ({ one }) => ({
+  report: one(reports, { fields: [reportVotes.reportId], references: [reports.id] }),
+  voter: one(users, { fields: [reportVotes.voterId], references: [users.id] }),
 }));
