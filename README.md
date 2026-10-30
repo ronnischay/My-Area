@@ -13,7 +13,7 @@ A society admin sets up their residential society and invites residents and mana
 | Backend | Express 5 · TypeScript 5.9 (ESM) · Zod 4 · helmet · cors |
 | Database | PostgreSQL 17 · Drizzle ORM 0.45 (`drizzle-orm`, `pg`) · `drizzle-kit` 0.31 migrations |
 | Auth | Email + password (scrypt), DB sessions in an httpOnly cookie, roles Admin/Manager/Resident, invite-only |
-| Media | Report photos on the server's disk (`UPLOAD_DIR`), metadata stripped, served only to the society's members (multer upload) |
+| Media | Report photos on the server's disk (`UPLOAD_DIR`): checked, turned upright, resized to ≤ 2000 px and saved as JPEG without metadata (sharp), served only to the society's members |
 | Email | SMTP via nodemailer (console sender for local dev): invites, and a new-report email to the society's managers (admins if none), sent after the response |
 | Design | "Courtyard": Bricolage Grotesque + Figtree, brand green `#07ab12` (`#057a0d` for white-text buttons/links), light default + dark toggle |
 | Tests | Vitest 5 · React Testing Library · Supertest |
