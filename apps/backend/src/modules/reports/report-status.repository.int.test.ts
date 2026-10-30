@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { insertSociety, insertUser, testDatabaseUrl, useTestDatabase } from "../../../test/helpers/db.js";
-import { reportStatusHistory, reports } from "../../db/schema/index.js";
+import { reportStatusHistory, reportVotes, reports } from "../../db/schema/index.js";
 import { createReportsRepository, type NewReport } from "./reports.repository.js";
 import { canTransition } from "./status-transitions.js";
 
@@ -30,8 +30,10 @@ describe.skipIf(!testDatabaseUrl)("report status + management (PostgreSQL)", () 
     const meera = await insertUser(db, { email: "meera@greenpark.example", role: "RESIDENT", societyId: greenPark.id });
     const rohit = await insertUser(db, { email: "rohit@greenpark.example", role: "MANAGER", societyId: greenPark.id, name: "Rohit Sharma" });
     const report = await repo.create(newReport(greenPark.id, meera.id));
+    // Each change a minute later than the last, so the timeline order is fixed (it sorts by time, then id).
+    let minutes = 0;
     const change = (to: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "REJECTED", societyId = greenPark.id, note: string | null = null) =>
-      repo.changeStatus({ societyId, reportId: report.id, to, note, changedById: rohit.id, at, isAllowed: canTransition });
+      repo.changeStatus({ societyId, reportId: report.id, to, note, changedById: rohit.id, at: new Date(at.getTime() + minutes++ * 60_000), isAllowed: canTransition });
     return { repo, greenPark, lakeView, meera, rohit, report, change };
   }
 
@@ -41,7 +43,7 @@ describe.skipIf(!testDatabaseUrl)("report status + management (PostgreSQL)", () 
     expect((await change("IN_PROGRESS", undefined, "Booked")).outcome).toBe("CHANGED");
     const resolved = await change("RESOLVED");
 
-    expect(resolved).toMatchObject({ outcome: "CHANGED", report: { status: "RESOLVED", resolvedAt: at } });
+    expect(resolved).toMatchObject({ outcome: "CHANGED", report: { status: "RESOLVED", resolvedAt: new Date(at.getTime() + 60_000) } });
     if (resolved.outcome !== "CHANGED") throw new Error("expected a change");
     expect(resolved.report.statusHistory.map((h) => [h.fromStatus, h.toStatus, h.note, h.changedBy.name])).toEqual([
       ["OPEN", "IN_PROGRESS", "Booked", "Rohit Sharma"],
@@ -105,5 +107,34 @@ describe.skipIf(!testDatabaseUrl)("report status + management (PostgreSQL)", () 
     await change("REJECTED");
     expect(await repo.countByStatus(greenPark.id)).toEqual({ OPEN: 1, IN_PROGRESS: 0, RESOLVED: 0, REJECTED: 1 });
     expect(await repo.countByStatus(lakeView.id)).toEqual({ OPEN: 0, IN_PROGRESS: 0, RESOLVED: 0, REJECTED: 0 });
+  });
+});
+
+describe.skipIf(!testDatabaseUrl)("report votes (PostgreSQL)", () => {
+  const db = useTestDatabase();
+
+  it("counts votes on detail and list, knows who voted, and allows one per person", async () => {
+    const repo = createReportsRepository(db);
+    const society = await insertSociety(db);
+    const meera = await insertUser(db, { email: "meera@x.example", role: "RESIDENT", societyId: society.id });
+    const farhan = await insertUser(db, { email: "farhan@x.example", role: "RESIDENT", societyId: society.id });
+    const rohit = await insertUser(db, { email: "rohit@x.example", role: "MANAGER", societyId: society.id });
+    const report = await repo.create(newReport(society.id, meera.id));
+
+    expect(await repo.addVote(report.id, farhan.id)).toBe("ADDED");
+    expect(await repo.addVote(report.id, rohit.id)).toBe("ADDED");
+    expect(await repo.addVote(report.id, farhan.id)).toBe("DUPLICATE");
+
+    expect(await repo.findById(society.id, report.id, farhan.id)).toMatchObject({ voteCount: 2, hasVoted: true });
+    expect(await repo.findById(society.id, report.id, meera.id)).toMatchObject({ voteCount: 2, hasVoted: false });
+    expect(await repo.findById(society.id, report.id)).toMatchObject({ hasVoted: false });
+    expect((await repo.list(society.id, { sort: "newest", page: 1, pageSize: 20 })).items[0]?.voteCount).toBe(2);
+
+    expect(await repo.removeVote(report.id, farhan.id)).toBe(true);
+    expect(await repo.removeVote(report.id, farhan.id)).toBe(false);
+    expect((await repo.findById(society.id, report.id))?.voteCount).toBe(1);
+
+    await db.delete(reports);
+    expect(await db.select().from(reportVotes)).toEqual([]);
   });
 });

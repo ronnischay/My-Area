@@ -1,7 +1,8 @@
-import { and, asc, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import { containsPattern } from "../../db/like.js";
-import { reportMedia, reportStatusHistory, reports } from "../../db/schema/index.js";
+import { isUniqueViolation } from "../../db/errors.js";
+import { reportMedia, reportStatusHistory, reportVotes, reports } from "../../db/schema/index.js";
 import { offsetOf } from "../../lib/pagination.js";
 import type { MediaType, ReportCategory, ReportMediaRecord, ReportRecord, ReportStatus, ReportSummaryRecord } from "./reports.types.js";
 
@@ -61,7 +62,12 @@ export interface ReportsRepository {
   /** One transaction: the report and its photo row are saved together or not at all. */
   create(input: NewReport): Promise<ReportRecord>;
   list(societyId: string, query: ReportListQuery): Promise<{ items: ReportSummaryRecord[]; total: number }>;
-  findById(societyId: string, reportId: string): Promise<ReportRecord | null>;
+  /** `viewerId` decides `hasVoted` (false when omitted). */
+  findById(societyId: string, reportId: string, viewerId?: string): Promise<ReportRecord | null>;
+  /** "DUPLICATE" when this person already gave a thumbs-up (primary key). The caller checks the rules first. */
+  addVote(reportId: string, voterId: string): Promise<"ADDED" | "DUPLICATE">;
+  /** True when a vote was removed. */
+  removeVote(reportId: string, voterId: string): Promise<boolean>;
   /**
    * One transaction: lock the report, check the transition against its current status, update it
    * (setting or clearing `resolved_at`) and add the history row. Two managers can't both win a race.
@@ -73,11 +79,25 @@ export interface ReportsRepository {
   countByStatus(societyId: string): Promise<Record<ReportStatus, number>>;
 }
 
+/**
+ * Correlated count, so list pages stay one query. In relational-query `extras` Drizzle renders every
+ * column reference with the root table's alias, so the subquery's own columns are written as plain SQL
+ * on an alias (`rv`); only the outer `reports.id` goes through Drizzle.
+ */
+const voteCount = sql<number>`(select count(*)::int from report_votes rv where rv.report_id = ${reports.id})`;
+
 export function createReportsRepository(db: Database): ReportsRepository {
-  const findById = async (societyId: string, reportId: string): Promise<ReportRecord | null> => {
+  const findById = async (societyId: string, reportId: string, viewerId?: string): Promise<ReportRecord | null> => {
     const row = await db.query.reports.findFirst({
       where: and(eq(reports.id, reportId), eq(reports.societyId, societyId)),
       columns: { societyId: false, createdById: false },
+      extras: {
+        voteCount: voteCount.as("vote_count"),
+        hasVoted: (viewerId
+          ? sql<boolean>`exists(select 1 from report_votes rv where rv.report_id = ${reports.id} and rv.voter_id = ${viewerId})`
+          : sql<boolean>`false`
+        ).as("has_voted"),
+      },
       with: {
         createdBy: { columns: { id: true, name: true } },
         media: {
@@ -121,6 +141,24 @@ export function createReportsRepository(db: Database): ReportsRepository {
       return report;
     },
 
+    async addVote(reportId, voterId) {
+      try {
+        await db.insert(reportVotes).values({ reportId, voterId });
+        return "ADDED";
+      } catch (err) {
+        if (isUniqueViolation(err, "report_votes_pkey")) return "DUPLICATE";
+        throw err;
+      }
+    },
+
+    async removeVote(reportId, voterId) {
+      const removed = await db
+        .delete(reportVotes)
+        .where(and(eq(reportVotes.reportId, reportId), eq(reportVotes.voterId, voterId)))
+        .returning({ reportId: reportVotes.reportId });
+      return removed.length > 0;
+    },
+
     async changeStatus({ societyId, reportId, to, note, changedById, at, isAllowed }) {
       const result = await db.transaction(async (tx): Promise<StatusChangeResult | "CHANGED"> => {
         const [current] = await tx
@@ -139,7 +177,7 @@ export function createReportsRepository(db: Database): ReportsRepository {
         return "CHANGED";
       });
       if (result !== "CHANGED") return result;
-      const report = await findById(societyId, reportId);
+      const report = await findById(societyId, reportId, changedById);
       if (!report) throw new Error("report not found after status change");
       return { outcome: "CHANGED", report };
     },
@@ -191,6 +229,7 @@ export function createReportsRepository(db: Database): ReportsRepository {
           limit: pageSize,
           offset: offsetOf(page, pageSize),
           columns: { id: true, title: true, category: true, locationText: true, status: true, createdById: true, createdAt: true },
+          extras: { voteCount: voteCount.as("vote_count") },
           with: {
             media: {
               columns: { url: true },

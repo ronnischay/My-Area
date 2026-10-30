@@ -51,6 +51,10 @@ export interface ReportRecord {
   media: ReportMediaRecord[];
   /** Oldest first. */
   statusHistory: StatusHistoryRecord[];
+  /** Thumbs-up count. */
+  voteCount: number;
+  /** Whether the viewer the record was loaded for has given a thumbs-up. */
+  hasVoted: boolean;
   resolvedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -84,6 +88,7 @@ export interface ReportSummaryRecord {
   createdById: string;
   /** First SUBMISSION photo, if any. */
   thumbnailUrl: string | null;
+  voteCount: number;
   createdAt: Date;
 }
 
@@ -116,6 +121,8 @@ export interface ReportDto {
   media: ReportMediaDto[];
   isMine: boolean;
   createdBy: UserRef | null;
+  voteCount: number;
+  hasVoted: boolean;
   resolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -131,7 +138,14 @@ export interface ReportSummaryDto {
   status: ReportStatus;
   thumbnailUrl: string | null;
   isMine: boolean;
+  voteCount: number;
   createdAt: string;
+}
+
+/** POST/DELETE /api/reports/:id/votes. */
+export interface VoteStateDto {
+  voteCount: number;
+  hasVoted: boolean;
 }
 
 export function toReportMediaDto(m: ReportMediaRecord): ReportMediaDto {
@@ -161,6 +175,8 @@ export function toReportDto(report: ReportRecord, viewer: ReportViewer): ReportD
     media: report.media.map(toReportMediaDto),
     isMine,
     createdBy: isMine || viewer.role !== "RESIDENT" ? report.createdBy : null,
+    voteCount: report.voteCount,
+    hasVoted: report.hasVoted,
     resolvedAt: report.resolvedAt?.toISOString() ?? null,
     createdAt: report.createdAt.toISOString(),
     updatedAt: report.updatedAt.toISOString(),
@@ -178,6 +194,7 @@ export function toReportSummaryDto(report: ReportSummaryRecord, viewer: ReportVi
     status: report.status,
     thumbnailUrl: report.thumbnailUrl,
     isMine: report.createdById === viewer.userId,
+    voteCount: report.voteCount,
     createdAt: report.createdAt.toISOString(),
   };
 }

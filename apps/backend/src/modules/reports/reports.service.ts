@@ -10,7 +10,7 @@ import type { NotificationsService } from "../notifications/notifications.servic
 import type { ReportsRepository } from "./reports.repository.js";
 import type { Clock } from "../../lib/clock.js";
 import type { CreateReportInput, ListReportsQuery, UpdateStatusInput } from "./reports.schemas.js";
-import type { ReportMediaRecord, ReportRecord, ReportStatus, ReportSummaryRecord } from "./reports.types.js";
+import type { ReportMediaRecord, ReportRecord, ReportStatus, ReportSummaryRecord, VoteStateDto } from "./reports.types.js";
 import { canTransition } from "./status-transitions.js";
 
 export interface ReportsService {
@@ -22,7 +22,12 @@ export interface ReportsService {
   /** MANAGER/ADMIN: evidence that the problem was fixed. */
   addResolutionPhoto(auth: SocietyAuthContext, reportId: string, photo: PreparedPhoto): Promise<ReportMediaRecord>;
   countByStatus(auth: SocietyAuthContext): Promise<Record<ReportStatus, number>>;
+  /** Thumbs-up: any member, not on their own report, only while the report is OPEN or IN_PROGRESS. */
+  vote(auth: SocietyAuthContext, reportId: string): Promise<VoteStateDto>;
+  unvote(auth: SocietyAuthContext, reportId: string): Promise<VoteStateDto>;
 }
+
+const VOTABLE: readonly ReportStatus[] = ["OPEN", "IN_PROGRESS"];
 
 export interface ReportsServiceDeps {
   repository: ReportsRepository;
@@ -72,6 +77,16 @@ export function createReportsService({ repository, storage, notifications, backg
     return { media, discard };
   };
 
+  /** The report in the caller's society (404 otherwise) that still accepts thumbs-up changes (409 otherwise). */
+  const votableReport = async (auth: SocietyAuthContext, reportId: string) => {
+    const report = await repository.findById(auth.societyId, reportId, auth.userId);
+    if (!report) throw notFound();
+    if (!VOTABLE.includes(report.status)) {
+      throw new AppError(409, "VOTING_CLOSED", "This report is closed, so thumbs-up can't change any more.");
+    }
+    return report;
+  };
+
   return {
     async create(auth, input, photo) {
       const { media, discard } = await storePhoto(photo);
@@ -92,7 +107,7 @@ export function createReportsService({ repository, storage, notifications, backg
       repository.list(auth.societyId, { ...query, ...(mine ? { createdById: auth.userId } : {}) }),
 
     async get(auth, reportId) {
-      const report = await repository.findById(auth.societyId, reportId);
+      const report = await repository.findById(auth.societyId, reportId, auth.userId);
       if (!report) throw notFound();
       return report;
     },
@@ -136,5 +151,20 @@ export function createReportsService({ repository, storage, notifications, backg
     },
 
     countByStatus: (auth) => repository.countByStatus(auth.societyId),
+
+    async vote(auth, reportId) {
+      const report = await votableReport(auth, reportId);
+      if (report.createdBy.id === auth.userId) throw new AppError(403, "FORBIDDEN", "You can't give a thumbs-up to your own report.");
+      if ((await repository.addVote(reportId, auth.userId)) === "DUPLICATE") {
+        throw new AppError(409, "ALREADY_VOTED", "You've already given this report a thumbs-up.");
+      }
+      return { voteCount: report.voteCount + 1, hasVoted: true };
+    },
+
+    async unvote(auth, reportId) {
+      const report = await votableReport(auth, reportId);
+      const removed = await repository.removeVote(reportId, auth.userId);
+      return { voteCount: report.voteCount - (removed ? 1 : 0), hasVoted: false };
+    },
   };
 }

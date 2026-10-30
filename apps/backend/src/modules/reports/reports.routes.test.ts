@@ -288,6 +288,7 @@ describe("GET /api/reports", () => {
       status: "OPEN",
       thumbnailUrl: null,
       isMine: true,
+      voteCount: 0,
       createdAt: third.createdAt.toISOString(),
     });
 
@@ -392,6 +393,8 @@ describe("GET /api/reports/:id", () => {
       ],
       isMine: true,
       createdBy: { id: meera.id, name: "Meera Iyer" },
+      voteCount: 0,
+      hasVoted: false,
       resolvedAt: null,
       createdAt: report.createdAt.toISOString(),
       updatedAt: report.updatedAt.toISOString(),

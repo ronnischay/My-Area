@@ -95,6 +95,8 @@ export class InMemoryStore {
   reports = new Map<string, ReportRow>();
   reportMedia = new Map<string, ReportMediaRow>();
   statusHistory: StatusHistoryRow[] = [];
+  /** `${reportId}:${voterId}`, like the report_votes primary key. */
+  votes = new Set<string>();
   /** Set to make the next report write throw, like a lost database connection. */
   failReportWrites: Error | null = null;
 
@@ -298,7 +300,9 @@ export function createFakeReportsRepository(store: InMemoryStore): ReportsReposi
       .filter((m) => m.reportId === reportId)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-  const toRecord = (report: ReportRow): ReportRecord => {
+  const votesFor = (reportId: string) => [...store.votes].filter((key) => key.startsWith(`${reportId}:`)).length;
+
+  const toRecord = (report: ReportRow, viewerId?: string): ReportRecord => {
     const author = store.users.get(report.createdById);
     if (!author) throw new Error("report author missing");
     return {
@@ -312,6 +316,8 @@ export function createFakeReportsRepository(store: InMemoryStore): ReportsReposi
       createdAt: report.createdAt,
       updatedAt: report.updatedAt,
       createdBy: { id: author.id, name: author.name },
+      voteCount: votesFor(report.id),
+      hasVoted: viewerId !== undefined && store.votes.has(`${report.id}:${viewerId}`),
       media: mediaOf(report.id).map((m) => ({
         id: m.id,
         purpose: m.purpose,
@@ -376,14 +382,26 @@ export function createFakeReportsRepository(store: InMemoryStore): ReportsReposi
         status: r.status,
         createdById: r.createdById,
         thumbnailUrl: mediaOf(r.id).find((m) => m.purpose === "SUBMISSION")?.url ?? null,
+        voteCount: votesFor(r.id),
         createdAt: r.createdAt,
       }));
       return { items, total: matches.length };
     },
 
-    async findById(societyId, reportId) {
+    async findById(societyId, reportId, viewerId) {
       const report = store.reports.get(reportId);
-      return report && report.societyId === societyId ? toRecord(report) : null;
+      return report && report.societyId === societyId ? toRecord(report, viewerId) : null;
+    },
+
+    async addVote(reportId, voterId) {
+      const key = `${reportId}:${voterId}`;
+      if (store.votes.has(key)) return "DUPLICATE";
+      store.votes.add(key);
+      return "ADDED";
+    },
+
+    async removeVote(reportId, voterId) {
+      return store.votes.delete(`${reportId}:${voterId}`);
     },
 
     async changeStatus({ societyId, reportId, to, note, changedById, at, isAllowed }) {
@@ -395,7 +413,7 @@ export function createFakeReportsRepository(store: InMemoryStore): ReportsReposi
       report.status = to;
       report.resolvedAt = to === "RESOLVED" ? at : null;
       report.updatedAt = at;
-      return { outcome: "CHANGED", report: toRecord(report) };
+      return { outcome: "CHANGED", report: toRecord(report, changedById) };
     },
 
     async addResolutionMedia(societyId, reportId, { uploadedById: _u, originalFilename: _f, ...media }) {

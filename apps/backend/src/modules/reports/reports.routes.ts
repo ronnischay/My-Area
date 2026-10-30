@@ -16,6 +16,9 @@ export function reportsRouter(deps: { service: ReportsService; requireAuth: Requ
   // multipart/form-data: text fields + one `photo` (docs/API_CONTRACT.md POST /api/reports).
   router.post("/", uploadPhoto, controller.create);
   router.get("/:id", controller.get);
+  // Thumbs-up: any member (rules in the service).
+  router.post("/:id/votes", controller.vote);
+  router.delete("/:id/votes", controller.unvote);
   // Managers and admins only (docs/API_CONTRACT.md Phase 7).
   router.patch("/:id/status", requireRole("MANAGER", "ADMIN"), controller.changeStatus);
   router.post("/:id/media", requireRole("MANAGER", "ADMIN"), uploadPhoto, controller.addResolutionPhoto);

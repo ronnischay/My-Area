@@ -45,5 +45,15 @@ export function createReportsController({ service }: { service: ReportsService }
     res.status(201).json({ data: toReportMediaDto(media) });
   };
 
-  return { create, list, get, changeStatus, addResolutionPhoto };
+  const vote: RequestHandler = async (req, res) => {
+    const { id } = parseInput(IdParamSchema, req.params);
+    res.status(201).json({ data: await service.vote(getSocietyAuth(req), id) });
+  };
+
+  const unvote: RequestHandler = async (req, res) => {
+    const { id } = parseInput(IdParamSchema, req.params);
+    res.json({ data: await service.unvote(getSocietyAuth(req), id) });
+  };
+
+  return { create, list, get, changeStatus, addResolutionPhoto, vote, unvote };
 }
