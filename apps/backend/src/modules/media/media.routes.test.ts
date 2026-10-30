@@ -14,7 +14,7 @@ async function setup() {
   const neha = await addUser(store, { role: "RESIDENT", societyId: lakeView.id });
   const report = addReport(store, { societyId: greenPark.id, createdById: meera.id });
   const photo = addReportMedia(store, { reportId: report.id, mimeType: "image/png" });
-  const bytes = makePng({ withMetadata: false });
+  const bytes = makePng();
   await mediaStorage.save(photo.providerPublicId, bytes);
   return {
     ...ctx,

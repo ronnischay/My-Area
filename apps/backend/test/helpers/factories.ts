@@ -101,9 +101,6 @@ export function addReportMedia(
     mediaType: "IMAGE",
     url: `/api/media/${id}`,
     mimeType: "image/jpeg",
-    sizeBytes: 245_000,
-    width: 1200,
-    height: 900,
     createdAt: store.nextCreatedAt(),
     ...options,
   };

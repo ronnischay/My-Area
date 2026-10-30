@@ -35,10 +35,6 @@ export interface NewReportMedia {
   url: string;
   providerPublicId: string;
   mimeType: string;
-  sizeBytes: number;
-  width: number;
-  height: number;
-  originalFilename: string | null;
 }
 
 export interface StatusChange {
@@ -101,7 +97,7 @@ export function createReportsRepository(db: Database): ReportsRepository {
       with: {
         createdBy: { columns: { id: true, name: true } },
         media: {
-          columns: { reportId: false, providerPublicId: false, originalFilename: false, uploadedById: false },
+          columns: { reportId: false, providerPublicId: false, uploadedById: false },
           orderBy: [asc(reportMedia.createdAt), asc(reportMedia.id)],
         },
         statusHistory: {
@@ -120,9 +116,6 @@ export function createReportsRepository(db: Database): ReportsRepository {
     mediaType: reportMedia.mediaType,
     url: reportMedia.url,
     mimeType: reportMedia.mimeType,
-    sizeBytes: reportMedia.sizeBytes,
-    width: reportMedia.width,
-    height: reportMedia.height,
     createdAt: reportMedia.createdAt,
   };
 

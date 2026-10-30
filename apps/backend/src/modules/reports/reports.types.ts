@@ -34,9 +34,6 @@ export interface ReportMediaRecord {
   mediaType: MediaType;
   url: string;
   mimeType: string;
-  sizeBytes: number;
-  width: number | null;
-  height: number | null;
   createdAt: Date;
 }
 
@@ -104,9 +101,6 @@ export interface ReportMediaDto {
   mediaType: MediaType;
   url: string;
   mimeType: string;
-  sizeBytes: number;
-  width: number | null;
-  height: number | null;
   createdAt: string;
 }
 
@@ -155,9 +149,6 @@ export function toReportMediaDto(m: ReportMediaRecord): ReportMediaDto {
     mediaType: m.mediaType,
     url: m.url,
     mimeType: m.mimeType,
-    sizeBytes: m.sizeBytes,
-    width: m.width,
-    height: m.height,
     createdAt: m.createdAt.toISOString(),
   };
 }

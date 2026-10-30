@@ -2,7 +2,7 @@ import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createTestApp } from "../../../test/helpers/app.js";
 import { addReport, addReportMedia, addSociety, addUser, sessionCookie } from "../../../test/helpers/factories.js";
-import { GPS_MARKER, makeJpeg, makePng, makeWebp } from "../../../test/helpers/images.js";
+import { GPS_MARKER, makeJpeg, makePng, makeTruncatedJpeg, makeWebp } from "../../../test/helpers/images.js";
 import { MAX_PHOTO_BYTES } from "../media/media.constants.js";
 
 /** Two societies. Green Park has an admin, a manager and two residents; Lake View has one resident. */
@@ -94,7 +94,6 @@ describe("POST /api/reports", () => {
       resolvedAt: null,
       statusHistory: [],
     });
-    // A 1200×900 photo taken in portrait (orientation 6) is shown 900 wide, 1200 high.
     expect(res.body.data.media).toEqual([
       {
         id: photoId,
@@ -102,9 +101,6 @@ describe("POST /api/reports", () => {
         mediaType: "IMAGE",
         url: `/api/media/${photoId}`,
         mimeType: "image/jpeg",
-        sizeBytes: expect.any(Number),
-        width: 900,
-        height: 1200,
         createdAt: expect.any(String),
       },
     ]);
@@ -113,24 +109,24 @@ describe("POST /api/reports", () => {
     const saved = store.reports.get(res.body.data.id);
     expect(saved).toMatchObject({ societyId: greenPark.id, createdById: meera.id, status: "OPEN" });
 
-    // The stored file is the cleaned photo: no GPS, same size as reported.
+    // The stored file is the cleaned photo: no GPS.
     const stored = mediaStorage.files.get(`reports/${photoId}.jpg`);
     expect(stored).toBeDefined();
     expect(stored!.includes(Buffer.from(GPS_MARKER))).toBe(false);
-    expect(stored!.length).toBe(res.body.data.media[0].sizeBytes);
   });
 
-  it("accepts PNG and WebP photos", async () => {
+  it("accepts PNG and WebP photos and stores them as JPEG", async () => {
     const { app, asMeera, mediaStorage } = await setup();
     const png = await postReport(app, asMeera, pothole, { bytes: makePng(), filename: "map.png", contentType: "image/png" });
     const webp = await postReport(app, asMeera, pothole, { bytes: makeWebp(), filename: "gate.webp", contentType: "image/webp" });
 
     expect(png.status).toBe(201);
-    expect(png.body.data.media[0]).toMatchObject({ mimeType: "image/png", width: 640, height: 480 });
     expect(webp.status).toBe(201);
-    expect(webp.body.data.media[0]).toMatchObject({ mimeType: "image/webp", width: 800, height: 600 });
-    expect([...mediaStorage.files.keys()].map((key) => key.split(".").pop()).sort()).toEqual(["png", "webp"]);
+    expect(png.body.data.media[0]).toMatchObject({ mimeType: "image/jpeg" });
+    expect(webp.body.data.media[0]).toMatchObject({ mimeType: "image/jpeg" });
+    expect([...mediaStorage.files.keys()].map((key) => key.split(".").pop())).toEqual(["jpg", "jpg"]);
   });
+
 
   it("returns field errors, including a missing photo, and saves nothing", async () => {
     const { app, store, mediaStorage, asMeera } = await setup();
@@ -194,7 +190,7 @@ describe("POST /api/reports", () => {
 
   it("rejects a damaged image with a field error", async () => {
     const { app, mediaStorage, asMeera } = await setup();
-    const res = await postReport(app, asMeera, pothole, { bytes: makeJpeg().subarray(0, 60) });
+    const res = await postReport(app, asMeera, pothole, { bytes: makeTruncatedJpeg() });
     expect(res.status).toBe(400);
     expect(res.body.error.details.fieldErrors.photo).toEqual(["This photo seems damaged. Try another one."]);
     expect(mediaStorage.files.size).toBe(0);
@@ -385,9 +381,6 @@ describe("GET /api/reports/:id", () => {
           mediaType: "IMAGE",
           url: photo.url,
           mimeType: "image/jpeg",
-          sizeBytes: 245_000,
-          width: 1200,
-          height: 900,
           createdAt: photo.createdAt.toISOString(),
         },
       ],

@@ -16,7 +16,7 @@ function newReport(societyId: string, createdById: string): NewReport {
     description: "The pole light facing the Block C gate has been off for a week.",
     category: "STREETLIGHTS",
     locationText: "Block C main gate",
-    photo: { id, mediaType: "IMAGE", url: `/api/media/${id}`, providerPublicId: `reports/${id}.jpg`, mimeType: "image/jpeg", sizeBytes: 1000, width: 800, height: 600, originalFilename: null },
+    photo: { id, mediaType: "IMAGE", url: `/api/media/${id}`, providerPublicId: `reports/${id}.jpg`, mimeType: "image/jpeg"},
   };
 }
 
@@ -98,10 +98,10 @@ describe.skipIf(!testDatabaseUrl)("report status + management (PostgreSQL)", () 
   it("adds resolution media only within the society, and counts reports per status", async () => {
     const { repo, greenPark, lakeView, meera, rohit, report, change } = await setup();
     const id = randomUUID();
-    const media = { id, mediaType: "IMAGE" as const, url: `/api/media/${id}`, providerPublicId: `reports/${id}.jpg`, mimeType: "image/jpeg", sizeBytes: 900, width: 600, height: 800, originalFilename: "fixed.jpg", uploadedById: rohit.id };
+    const media = { id, mediaType: "IMAGE" as const, url: `/api/media/${id}`, providerPublicId: `reports/${id}.jpg`, mimeType: "image/jpeg", uploadedById: rohit.id };
 
     expect(await repo.addResolutionMedia(lakeView.id, report.id, media)).toBeNull();
-    expect(await repo.addResolutionMedia(greenPark.id, report.id, media)).toMatchObject({ id, purpose: "RESOLUTION", width: 600 });
+    expect(await repo.addResolutionMedia(greenPark.id, report.id, media)).toMatchObject({ id, purpose: "RESOLUTION", mimeType: "image/jpeg" });
 
     await repo.create(newReport(greenPark.id, meera.id));
     await change("REJECTED");

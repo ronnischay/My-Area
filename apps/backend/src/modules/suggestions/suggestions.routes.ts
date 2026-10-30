@@ -63,7 +63,7 @@ export function suggestionsRouter({ provider, requireAuth, logger, clock }: Deps
   router.post("/", noStore, requireAuth, requireSociety, uploadPhoto, async (req, res) => {
     const input = parseInput(SuggestBodySchema, { ...req.body, photo: req.file });
     // Same checks and metadata stripping as a report photo: Google never gets GPS or camera data.
-    const photo = input.photo ? preparePhoto(input.photo) : undefined;
+    const photo = input.photo ? await preparePhoto(input.photo) : undefined;
     if (!provider) throw new AppError(503, "SUGGESTIONS_UNAVAILABLE", "Suggestions aren't switched on for this society.");
 
     const { userId } = getSocietyAuth(req);

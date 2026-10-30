@@ -28,10 +28,6 @@ function newReport(societyId: string, createdById: string, overrides: Partial<Om
       url: `/api/media/${id}`,
       providerPublicId: `reports/${id}.jpg`,
       mimeType: "image/jpeg",
-      sizeBytes: 1000,
-      width: 800,
-      height: 600,
-      originalFilename: "IMG_2041.jpg",
     },
   };
 }
@@ -72,13 +68,13 @@ describe.skipIf(!testDatabaseUrl)("reports repository (PostgreSQL)", () => {
 
     expect(created).toMatchObject({ ...fields, status: "OPEN", resolvedAt: null, createdBy: { id: meera.id, name: "Meera Iyer" } });
     expect(created.media).toEqual([
-      expect.objectContaining({ id: input.photo.id, purpose: "SUBMISSION", url: input.photo.url, width: 800, height: 600 }),
+      expect.objectContaining({ id: input.photo.id, purpose: "SUBMISSION", url: input.photo.url, mimeType: "image/jpeg" }),
     ]);
     // Storage key and original filename stay server-side.
     expect(created.media[0]).not.toHaveProperty("providerPublicId");
-    expect(created.media[0]).not.toHaveProperty("originalFilename");
     const [row] = await db.select().from(reportMedia);
-    expect(row).toMatchObject({ uploadedById: meera.id, originalFilename: "IMG_2041.jpg" });
+    expect(row).toMatchObject({ uploadedById: meera.id });
+    expect(Object.keys(row!).sort()).toEqual(["createdAt", "id", "mediaType", "mimeType", "providerPublicId", "purpose", "reportId", "uploadedById", "url"]);
   });
 
   it("saves nothing when the photo row fails (one transaction)", async () => {
@@ -154,7 +150,6 @@ describe.skipIf(!testDatabaseUrl)("reports repository (PostgreSQL)", () => {
       url: "/api/media/resolution",
       providerPublicId: "reports/resolution.jpg",
       mimeType: "image/jpeg",
-      sizeBytes: 1000,
       uploadedById: meera.id,
     });
 
@@ -185,12 +180,11 @@ describe.skipIf(!testDatabaseUrl)("reports repository (PostgreSQL)", () => {
       url: "/api/media/x",
       providerPublicId: "reports/x.jpg",
       mimeType: "image/jpeg",
-      sizeBytes: 1000,
       uploadedById: meera.id,
     };
-    // report_media_size_bytes_ck and report_media_dimensions_ck (23514).
-    expect(await pgErrorCode(db.insert(reportMedia).values({ ...media, sizeBytes: 0 }))).toBe("23514");
-    expect(await pgErrorCode(db.insert(reportMedia).values({ ...media, width: 0 }))).toBe("23514");
+    // Each stored file belongs to exactly one row (report_media_provider_public_id_uq, 23505).
+    await db.insert(reportMedia).values(media);
+    expect(await pgErrorCode(db.insert(reportMedia).values(media))).toBe("23505");
   });
 
   it("deletes a report's media with the report", async () => {

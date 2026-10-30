@@ -144,7 +144,7 @@ describe("POST /api/reports/:id/media (resolution photo)", () => {
     const res = await upload(app, asManager, report.id);
 
     expect(res.status).toBe(201);
-    expect(res.body.data).toMatchObject({ purpose: "RESOLUTION", mediaType: "IMAGE", url: `/api/media/${res.body.data.id}`, width: 900, height: 1200 });
+    expect(res.body.data).toMatchObject({ purpose: "RESOLUTION", mediaType: "IMAGE", url: `/api/media/${res.body.data.id}`, mimeType: "image/jpeg" });
     const stored = mediaStorage.files.get(`reports/${res.body.data.id}.jpg`);
     expect(stored?.includes(Buffer.from(GPS_MARKER))).toBe(false);
 

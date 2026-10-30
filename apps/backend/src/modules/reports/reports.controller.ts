@@ -11,7 +11,7 @@ export function createReportsController({ service }: { service: ReportsService }
   const create: RequestHandler = async (req, res) => {
     const { photo, ...input } = parseInput(CreateReportFormSchema, { ...req.body, photo: req.file });
     const auth = getSocietyAuth(req);
-    const report = await service.create(auth, input, preparePhoto(photo));
+    const report = await service.create(auth, input, await preparePhoto(photo));
     res.status(201).json({ data: toReportDto(report, auth) });
   };
 
@@ -41,7 +41,7 @@ export function createReportsController({ service }: { service: ReportsService }
   const addResolutionPhoto: RequestHandler = async (req, res) => {
     const { id } = parseInput(IdParamSchema, req.params);
     const { photo } = parseInput(ResolutionPhotoFormSchema, { photo: req.file });
-    const media = await service.addResolutionPhoto(getSocietyAuth(req), id, preparePhoto(photo));
+    const media = await service.addResolutionPhoto(getSocietyAuth(req), id, await preparePhoto(photo));
     res.status(201).json({ data: toReportMediaDto(media) });
   };
 

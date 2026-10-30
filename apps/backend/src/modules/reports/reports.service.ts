@@ -65,10 +65,6 @@ export function createReportsService({ repository, storage, notifications, backg
       url: mediaUrl(id),
       providerPublicId: key,
       mimeType: photo.mimeType,
-      sizeBytes: photo.sizeBytes,
-      width: photo.width,
-      height: photo.height,
-      originalFilename: photo.originalFilename,
     };
     const discard = () =>
       storage.delete(key).catch((cleanupErr: unknown) => {

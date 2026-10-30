@@ -69,9 +69,6 @@ export interface ReportMediaRow {
   mediaType: MediaType;
   url: string;
   mimeType: string;
-  sizeBytes: number;
-  width: number | null;
-  height: number | null;
   createdAt: Date;
 }
 
@@ -324,9 +321,6 @@ export function createFakeReportsRepository(store: InMemoryStore): ReportsReposi
         mediaType: m.mediaType,
         url: m.url,
         mimeType: m.mimeType,
-        sizeBytes: m.sizeBytes,
-        width: m.width,
-        height: m.height,
         createdAt: m.createdAt,
       })),
       statusHistory: store.statusHistory
@@ -355,9 +349,6 @@ export function createFakeReportsRepository(store: InMemoryStore): ReportsReposi
         mediaType: photo.mediaType,
         url: photo.url,
         mimeType: photo.mimeType,
-        sizeBytes: photo.sizeBytes,
-        width: photo.width,
-        height: photo.height,
         createdAt,
       });
       return toRecord(report);
@@ -416,7 +407,7 @@ export function createFakeReportsRepository(store: InMemoryStore): ReportsReposi
       return { outcome: "CHANGED", report: toRecord(report, changedById) };
     },
 
-    async addResolutionMedia(societyId, reportId, { uploadedById: _u, originalFilename: _f, ...media }) {
+    async addResolutionMedia(societyId, reportId, { uploadedById: _u, ...media }) {
       if (store.failReportWrites) throw store.failReportWrites;
       const report = store.reports.get(reportId);
       if (!report || report.societyId !== societyId) return null;
@@ -428,9 +419,6 @@ export function createFakeReportsRepository(store: InMemoryStore): ReportsReposi
         mediaType: row.mediaType,
         url: row.url,
         mimeType: row.mimeType,
-        sizeBytes: row.sizeBytes,
-        width: row.width,
-        height: row.height,
         createdAt: row.createdAt,
       };
     },
