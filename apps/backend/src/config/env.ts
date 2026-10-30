@@ -46,6 +46,14 @@ const EnvSchema = z
 
     // Report photos are stored on this server's disk (D021). Relative paths resolve from the working directory.
     UPLOAD_DIR: z.string().trim().min(1).default("uploads"),
+
+    // AI suggestions on the report form (docs/features/ai-suggestions.md). Off without a key.
+    GEMINI_API_KEY: z.string().trim().min(1).optional(),
+    GEMINI_MODEL: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9][a-z0-9.-]*$/, "must be a Gemini model id, e.g. gemini-3.5-flash-lite")
+      .default("gemini-3.5-flash-lite"),
   })
   .superRefine((env, ctx) => {
     if (env.EMAIL_PROVIDER === "console" && env.NODE_ENV === "production") {
@@ -79,6 +87,9 @@ export interface MediaConfig {
   uploadDir: string;
 }
 
+/** null when no key is set: the feature is off and the button hidden. */
+export type AiConfig = { provider: "gemini"; apiKey: string; model: string } | null;
+
 export interface AppConfig {
   nodeEnv: "development" | "test" | "production";
   port: number;
@@ -88,6 +99,7 @@ export interface AppConfig {
   appUrl: string;
   email: EmailConfig;
   media: MediaConfig;
+  ai: AiConfig;
 }
 
 export class ConfigError extends Error {
@@ -130,5 +142,6 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     appUrl: env.APP_URL,
     email,
     media: { storage: "local", uploadDir: resolve(env.UPLOAD_DIR) },
+    ai: env.GEMINI_API_KEY ? { provider: "gemini", apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL } : null,
   };
 }

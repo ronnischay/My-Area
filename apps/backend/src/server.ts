@@ -13,6 +13,7 @@ import { createSocietiesRepository } from "./modules/societies/societies.reposit
 import { createUsersRepository } from "./modules/users/users.repository.js";
 import { createEmailSender } from "./providers/email.provider.js";
 import { createLocalMediaStorage } from "./providers/media-storage.js";
+import { createGeminiSuggestionProvider } from "./providers/suggestion.provider.js";
 
 // The only file that binds a port. Loads apps/backend/.env when present (real env vars take precedence).
 if (existsSync(".env")) process.loadEnvFile(".env");
@@ -46,6 +47,7 @@ const app = createApp({
   mediaStorage: createLocalMediaStorage(config.media.uploadDir),
   passwordHasher: createPasswordHasher(),
   backgroundTasks,
+  suggestionProvider: config.ai ? createGeminiSuggestionProvider({ apiKey: config.ai.apiKey, model: config.ai.model }) : null,
 });
 
 const server = app.listen(config.port, () => {

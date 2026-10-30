@@ -3,6 +3,7 @@ import { createApp } from "../../src/app.js";
 import { createBackgroundTasks } from "../../src/lib/background-tasks.js";
 import type { AppConfig } from "../../src/config/env.js";
 import type { Logger } from "../../src/lib/logger.js";
+import type { SuggestionProvider } from "../../src/providers/suggestion.provider.js";
 import { fastPasswordHasher } from "./factories.js";
 import {
   createFakeAuthRepository,
@@ -27,6 +28,8 @@ export const testConfig: AppConfig = {
   email: { provider: "console", from: "MyArea <no-reply@test.local>" },
   // Never written to in HTTP tests; media storage is FakeMediaStorage.
   media: { storage: "local", uploadDir: "/nonexistent/myarea-test-uploads" },
+  // AI suggestions use a fake provider in tests (createTestApp option), never Gemini.
+  ai: null,
 };
 
 /** A logger whose methods are spies, so tests can assert on (and silence) log output. */
@@ -50,7 +53,7 @@ export function createTestClock(start = new Date("2026-10-28T10:00:00.000Z")) {
   return clock;
 }
 
-export function createTestApp(overrides: Partial<AppConfig> = {}) {
+export function createTestApp(overrides: Partial<AppConfig> = {}, options: { suggestionProvider?: SuggestionProvider | null } = {}) {
   const logger = createFakeLogger();
   const store = new InMemoryStore();
   const clock = createTestClock();
@@ -73,6 +76,7 @@ export function createTestApp(overrides: Partial<AppConfig> = {}) {
     passwordHasher: fastPasswordHasher,
     clock: () => clock.now,
     backgroundTasks,
+    suggestionProvider: options.suggestionProvider ?? null,
   });
   // Await `backgroundTasks.idle()` before asserting on emails sent after a response.
   return { app, logger, store, clock, emailSender, mediaStorage, backgroundTasks };

@@ -34,6 +34,8 @@ import { usersRouter } from "./modules/users/users.routes.js";
 import { createUsersService } from "./modules/users/users.service.js";
 import type { EmailSender } from "./providers/email.provider.js";
 import type { MediaStorage } from "./providers/media-storage.js";
+import type { SuggestionProvider } from "./providers/suggestion.provider.js";
+import { featuresRouter, suggestionsRouter } from "./modules/suggestions/suggestions.routes.js";
 
 export interface Repositories {
   auth: AuthRepository;
@@ -54,6 +56,8 @@ export interface AppDeps {
   clock?: Clock;
   /** Post-response work (emails). Pass one in to await it (tests, shutdown); otherwise one is created. */
   backgroundTasks?: BackgroundTasks;
+  /** AI suggestions on the report form; null (or omitted) when the feature is off. */
+  suggestionProvider?: SuggestionProvider | null;
 }
 
 /**
@@ -69,6 +73,7 @@ export function createApp({
   passwordHasher,
   clock = systemClock,
   backgroundTasks = createBackgroundTasks(logger),
+  suggestionProvider = null,
 }: AppDeps): Express {
   const app = express();
 
@@ -123,6 +128,8 @@ export function createApp({
     logger,
     clock,
   });
+  app.use("/api/features", featuresRouter({ provider: suggestionProvider, requireAuth: authenticated }));
+  app.use("/api/reports/suggest", suggestionsRouter({ provider: suggestionProvider, requireAuth: authenticated, logger, clock }));
   app.use("/api/reports", reportsRouter({ service: reportsService, requireAuth: authenticated }));
   app.use("/api/management", managementRouter({ reports: reportsService, requireAuth: authenticated }));
   app.use(

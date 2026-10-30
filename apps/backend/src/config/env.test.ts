@@ -25,7 +25,14 @@ describe("loadConfig", () => {
       appUrl: "http://localhost:3000",
       email: { provider: "console", from: "MyArea <no-reply@localhost>" },
       media: { storage: "local", uploadDir: resolve("uploads") },
+      ai: null,
     });
+  });
+
+  it("turns AI suggestions on only with a Gemini key, and checks the model id", () => {
+    expect(loadConfig({ DATABASE_URL, GEMINI_API_KEY: "  test-key  " }).ai).toEqual({ provider: "gemini", apiKey: "test-key", model: "gemini-3.5-flash-lite" });
+    expect(loadConfig({ DATABASE_URL, GEMINI_API_KEY: "k", GEMINI_MODEL: "gemini-3.8-flash" }).ai?.model).toBe("gemini-3.8-flash");
+    expect(configError({ DATABASE_URL, GEMINI_API_KEY: "k", GEMINI_MODEL: "../evil?x=1" }).message).toMatch(/GEMINI_MODEL/);
   });
 
   it("resolves UPLOAD_DIR to an absolute path", () => {
