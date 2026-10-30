@@ -126,7 +126,7 @@ async function ReportDetail({ params }: Pick<PageProps<"/reports/[id]">, "params
 function Photo({ photo, alt, priority = false }: { photo: ReportMedia; alt: string; priority?: boolean }) {
   return (
     <a href={photo.url} target="_blank" rel="noopener" className="block overflow-hidden rounded-card border border-border">
-      <ReportPhoto src={photo.url} alt={alt} width={photo.width} height={photo.height} frame="natural" priority={priority} />
+      <ReportPhoto src={photo.url} alt={alt} frame="natural" priority={priority} />
       <span className="sr-only"> (opens full size in a new tab)</span>
     </a>
   );

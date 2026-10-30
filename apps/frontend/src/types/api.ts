@@ -135,10 +135,6 @@ export interface ReportMedia {
   /** Same-origin path `/api/media/:id`; needs the session cookie (only the report's society can load it). */
   url: string;
   mimeType: string;
-  sizeBytes: number;
-  /** Pixel size, so the UI can reserve space before the image loads. */
-  width: number | null;
-  height: number | null;
   createdAt: string;
 }
 

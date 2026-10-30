@@ -7,8 +7,6 @@ interface ReportPhotoProps {
   /** Same-origin `/api/media/:id`; needs the session cookie, so it can't go through next/image. */
   src: string | null;
   alt: string;
-  width?: number | null;
-  height?: number | null;
   /** Card thumbnails use a fixed frame; the detail page keeps the photo's own shape. */
   frame?: "card" | "natural";
   priority?: boolean;
@@ -17,9 +15,9 @@ interface ReportPhotoProps {
 
 /**
  * A report photo, or a placeholder when there is none or it fails to load (UI_UX_GUIDELINES §7
- * "Partial"). Stored width/height reserve the space, so nothing shifts while it loads.
+ * "Partial"). No pixel size is stored, so the detail view can grow a little as the photo loads.
  */
-export function ReportPhoto({ src, alt, width, height, frame = "card", priority = false, className }: ReportPhotoProps) {
+export function ReportPhoto({ src, alt, frame = "card", priority = false, className }: ReportPhotoProps) {
   const [failed, setFailed] = useState(false);
   const box = frame === "card" ? "aspect-[4/3]" : "";
 
@@ -41,8 +39,6 @@ export function ReportPhoto({ src, alt, width, height, frame = "card", priority 
     <img
       src={src}
       alt={alt}
-      width={width ?? undefined}
-      height={height ?? undefined}
       loading={priority ? "eager" : "lazy"}
       decoding="async"
       onError={() => setFailed(true)}
