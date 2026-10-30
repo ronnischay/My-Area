@@ -11,7 +11,7 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { ApiError, apiFetch } from "@/lib/api-client";
 import { CATEGORIES, REPORT_LIMITS } from "@/lib/reports";
-import type { DataResponse, Report } from "@/types/api";
+import type { DataResponse, Report, ReportSuggestion } from "@/types/api";
 
 type FieldName = "photo" | "title" | "category" | "locationText" | "description";
 type Values = Record<Exclude<FieldName, "photo">, string>;
@@ -55,7 +55,7 @@ export function validateReport(values: Values, photo: File | null): Errors {
  * New report (UI_UX_GUIDELINES §6, §8). Validates on blur and submit, shows an error summary that
  * takes focus, keeps every value and the photo on failure, and replaces itself with a success panel.
  */
-export function ReportForm() {
+export function ReportForm({ aiSuggestions = false }: { aiSuggestions?: boolean }) {
   const [values, setValues] = useState<Values>(EMPTY);
   const [photo, setPhoto] = useState<File | null>(null);
   const [errors, setErrors] = useState<Errors>({});
@@ -63,6 +63,10 @@ export function ReportForm() {
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [created, setCreated] = useState<Report | null>(null);
+  const [autofilling, setAutofilling] = useState(false);
+  const [autofillNote, setAutofillNote] = useState<{ text: string; undo: Values | null } | null>(null);
+  // The latest request wins: an answer for a photo that has since been replaced is dropped.
+  const autofillRequest = useRef(0);
   const summaryRef = useRef<HTMLDivElement>(null);
   const successRef = useRef<HTMLHeadingElement>(null);
 
@@ -79,9 +83,49 @@ export function ReportForm() {
   const blur = (name: keyof Values) => setErrors((e) => ({ ...e, [name]: validateReport(values, photo)[name] }));
 
   const choosePhoto = (file: File | null) => {
+    autofillRequest.current += 1; // a pending autofill was for the old photo
+    setAutofilling(false);
     setPhoto(file);
     setErrors((e) => ({ ...e, photo: file ? validateReport(values, file).photo : e.photo }));
   };
+
+  /**
+   * "Autofill with AI" (docs/features/ai-suggestions.md): only on tap. Sends the photo (cleaned by the
+   * server first) and whatever text exists, then fills title, category and description, with Undo.
+   */
+  async function autofill() {
+    const request = ++autofillRequest.current;
+    setAutofilling(true);
+    setAutofillNote(null);
+    const form = new FormData();
+    if (photo) form.set("photo", photo);
+    if (values.title.trim()) form.set("title", values.title.trim());
+    if (values.description.trim()) form.set("description", values.description.trim());
+    try {
+      const { data } = await apiFetch<DataResponse<ReportSuggestion>>("/api/reports/suggest", { method: "POST", body: form });
+      if (request !== autofillRequest.current) return;
+      const before = values;
+      setValues((v) => ({ ...v, title: data.title.slice(0, REPORT_LIMITS.title.max), category: data.category, description: data.description }));
+      setErrors((e) => ({ ...e, title: undefined, category: undefined, description: undefined }));
+      setAutofillNote({ text: `Filled in by AI${photo ? " from your photo" : ""}. Check it before you submit.`, undo: before });
+    } catch (error) {
+      if (request !== autofillRequest.current) return;
+      setAutofillNote({
+        text:
+          error instanceof ApiError && ["RATE_LIMITED", "SUGGESTION_FAILED", "UNSUPPORTED_MEDIA_TYPE", "FILE_TOO_LARGE"].includes(error.code)
+            ? error.message
+            : "Autofill isn't available right now. You can fill in the form yourself.",
+        undo: null,
+      });
+    } finally {
+      if (request === autofillRequest.current) setAutofilling(false);
+    }
+  }
+
+  function undoAutofill() {
+    if (autofillNote?.undo) setValues(autofillNote.undo);
+    setAutofillNote(null);
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -159,6 +203,7 @@ export function ReportForm() {
   }
 
   const summary = FIELDS.filter((f) => errors[f.name]);
+  const canAutofill = photo !== null || values.description.trim().length >= REPORT_LIMITS.description.min;
 
   return (
     <form noValidate onSubmit={onSubmit} className="flex flex-col gap-6" aria-busy={pending || undefined}>
@@ -192,6 +237,40 @@ export function ReportForm() {
         error={errors.photo}
         required
       />
+
+      {aiSuggestions && (
+        <div className="flex flex-col gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="self-start"
+            disabled={!canAutofill}
+            aria-describedby={canAutofill ? undefined : "autofill-hint"}
+            loading={autofilling}
+            loadingText={photo ? "Looking at your photo…" : "Thinking…"}
+            onClick={autofill}
+          >
+            <span aria-hidden="true">✨</span> Autofill with AI
+          </Button>
+          {!canAutofill && (
+            <p id="autofill-hint" className="text-sm text-fg-muted">
+              Add a photo (or write {REPORT_LIMITS.description.min}+ characters in the description) to fill in the form with AI.
+            </p>
+          )}
+          <div aria-live="polite">
+            {autofillNote && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-field bg-info-soft px-4 py-3 text-sm text-fg">
+                <span>{autofillNote.text}</span>
+                {autofillNote.undo && (
+                  <button type="button" onClick={undoAutofill} className="min-h-11 rounded-pill px-2 font-semibold text-primary underline">
+                    Undo
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <Field id="report-title" label="Title" hint="A few words, e.g. “Streetlight out near Block C”" error={errors.title} required>
         {(control) => (

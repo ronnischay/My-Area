@@ -23,6 +23,8 @@ export type ApiErrorCode =
   | "UNSUPPORTED_MEDIA_TYPE"
   | "RATE_LIMITED"
   | "MEDIA_UPLOAD_FAILED"
+  | "SUGGESTIONS_UNAVAILABLE"
+  | "SUGGESTION_FAILED"
   | "INTERNAL_ERROR";
 
 export interface ApiErrorBody {
@@ -201,6 +203,18 @@ export interface CreateReportInput {
   description: string;
   category: ReportCategory;
   locationText: string;
+}
+
+/** GET /api/features: optional features this server has switched on. */
+export interface Features {
+  aiSuggestions: boolean;
+}
+
+/** POST /api/reports/suggest ("Autofill with AI"): filled into the form, with Undo. */
+export interface ReportSuggestion {
+  title: string;
+  category: ReportCategory;
+  description: string;
 }
 
 /** GET /api/management/stats (MANAGER, ADMIN). */

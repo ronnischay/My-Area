@@ -4,7 +4,9 @@ import { Suspense } from "react";
 import { Container } from "@/components/layout/Container";
 import { ReportForm } from "@/components/reports/ReportForm";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { backendGet } from "@/lib/server/backend";
 import { requireMember } from "@/lib/server/session";
+import type { DataResponse, Features } from "@/types/api";
 
 export const metadata: Metadata = { title: "Report an issue" };
 
@@ -39,5 +41,7 @@ export default function NewReportPage() {
 
 async function MembersOnly() {
   await requireMember();
-  return <ReportForm />;
+  // A features check that fails just hides the Suggest button; the form never depends on it.
+  const features = await backendGet<DataResponse<Features>>("/api/features").catch(() => null);
+  return <ReportForm aiSuggestions={features?.data.aiSuggestions ?? false} />;
 }

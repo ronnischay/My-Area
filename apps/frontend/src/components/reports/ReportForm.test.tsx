@@ -100,3 +100,65 @@ describe("ReportForm", () => {
     expect(await screen.findByRole("link", { name: "Photo: Use a JPEG, PNG or WebP photo." })).toBeInTheDocument();
   });
 });
+
+describe("ReportForm autofill with AI", () => {
+  const filled = { title: "Pothole outside Gate 2", category: "ROADS", description: "A deep pothole outside Gate 2 makes bikes swerve." };
+
+  it("has no Autofill button when the feature is off", () => {
+    render(<ReportForm />);
+    expect(screen.queryByRole("button", { name: /Autofill with AI/ })).not.toBeInTheDocument();
+  });
+
+  it("is enabled by a photo, sends it only on tap, and fills title, category and description", async () => {
+    const fetchMock = vi.fn(async () => json(200, { data: filled }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<ReportForm aiSuggestions />);
+
+    const autofill = screen.getByRole("button", { name: /Autofill with AI/ });
+    expect(autofill).toBeDisabled();
+    expect(autofill).toHaveAccessibleDescription(/Add a photo/);
+
+    await user.upload(document.getElementById("report-photo") as HTMLInputElement, photo());
+    expect(autofill).toBeEnabled();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await user.click(autofill);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/reports/suggest");
+    expect(((init.body as FormData).get("photo") as File).name).toBe("pothole.jpg");
+
+    expect(await screen.findByText(/Filled in by AI from your photo/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Title/)).toHaveValue(filled.title);
+    expect(screen.getByLabelText("Category")).toHaveValue("ROADS");
+    expect(screen.getByLabelText(/^Description/)).toHaveValue(filled.description);
+  });
+
+  it("puts back exactly what was there on Undo", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json(200, { data: filled })));
+    const user = userEvent.setup();
+    render(<ReportForm aiSuggestions />);
+    await user.type(screen.getByLabelText(/^Title/), "my own title");
+    await user.upload(document.getElementById("report-photo") as HTMLInputElement, photo());
+
+    await user.click(screen.getByRole("button", { name: /Autofill with AI/ }));
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+
+    expect(screen.getByLabelText(/^Title/)).toHaveValue("my own title");
+    expect(screen.getByLabelText("Category")).toHaveValue("");
+    expect(screen.getByLabelText(/^Description/)).toHaveValue("");
+  });
+
+  it("explains a failure and leaves the form as it was", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json(502, { error: { code: "SUGGESTION_FAILED", message: "Couldn't get a suggestion right now. You can carry on without it." } })));
+    const user = userEvent.setup();
+    render(<ReportForm aiSuggestions />);
+    await user.type(screen.getByLabelText(/^Description/), "big hole at gate two, bikes falling");
+
+    await user.click(screen.getByRole("button", { name: /Autofill with AI/ }));
+
+    expect(await screen.findByText("Couldn't get a suggestion right now. You can carry on without it.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Description/)).toHaveValue("big hole at gate two, bikes falling");
+    expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+  });
+});
