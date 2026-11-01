@@ -4,13 +4,13 @@ import { createTestApp } from "../../../test/helpers/app.js";
 import { addReport, addSociety, addUser, sessionCookie } from "../../../test/helpers/factories.js";
 import { GPS_MARKER, makeJpeg } from "../../../test/helpers/images.js";
 
-/** Green Park: admin, manager, two residents and an OPEN report by Meera. Lake View: a manager. */
+/** Green Park: manager, two residents and an OPEN report by Meera. Lake View: a manager. An admin in neither. */
 async function setup() {
   const ctx = createTestApp();
   const { store, clock } = ctx;
   const greenPark = addSociety(store, { name: "Green Park Residency" });
   const lakeView = addSociety(store, { name: "Lake View Towers" });
-  const admin = await addUser(store, { role: "ADMIN", societyId: greenPark.id, name: "Asha Rao" });
+  const admin = await addUser(store, { role: "ADMIN", name: "Asha Rao" });
   const manager = await addUser(store, { role: "MANAGER", societyId: greenPark.id, name: "Rohit Sharma" });
   const meera = await addUser(store, { role: "RESIDENT", societyId: greenPark.id, name: "Meera Iyer" });
   const farhan = await addUser(store, { role: "RESIDENT", societyId: greenPark.id, name: "Farhan Qureshi" });
@@ -55,12 +55,12 @@ describe("PATCH /api/reports/:id/status", () => {
     expect(store.reports.get(report.id)?.status).toBe("IN_PROGRESS");
   });
 
-  it("sets resolvedAt when resolved, stores a blank note as none, and admins may do it too", async () => {
-    const { app, clock, asManager, asAdmin, report } = await setup();
+  it("sets resolvedAt when resolved and stores a blank note as none", async () => {
+    const { app, clock, asManager, report } = await setup();
     await patchStatus(app, asManager, report.id, { status: "IN_PROGRESS" });
     clock.advance(60 * 60 * 1000);
 
-    const res = await patchStatus(app, asAdmin, report.id, { status: "RESOLVED", note: "   " });
+    const res = await patchStatus(app, asManager, report.id, { status: "RESOLVED", note: "   " });
 
     expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({ status: "RESOLVED", resolvedAt: clock.now.toISOString() });
@@ -88,12 +88,13 @@ describe("PATCH /api/reports/:id/status", () => {
     expect(store.statusHistory).toHaveLength(1);
   });
 
-  it("is for managers and admins only", async () => {
-    const { app, store, asMeera, report } = await setup();
+  it("is for managers only: residents and admins get 403", async () => {
+    const { app, store, asMeera, asAdmin, report } = await setup();
     expect((await request(app).patch(`/api/reports/${report.id}/status`).send({ status: "IN_PROGRESS" })).status).toBe(401);
 
     const res = await patchStatus(app, asMeera, report.id, { status: "IN_PROGRESS" });
     expect(res.status).toBe(403);
+    expect((await patchStatus(app, asAdmin, report.id, { status: "IN_PROGRESS" })).status).toBe(403);
     expect(store.reports.get(report.id)?.status).toBe("OPEN");
   });
 
@@ -152,9 +153,10 @@ describe("POST /api/reports/:id/media (resolution photo)", () => {
     expect(detail.body.data.media.map((m: { purpose: string }) => m.purpose)).toEqual(["RESOLUTION"]);
   });
 
-  it("is for managers and admins only, and never writes a file for a missing report", async () => {
-    const { app, mediaStorage, asMeera, asOtherManager, report } = await setup();
+  it("is for managers only, and never writes a file for a missing report", async () => {
+    const { app, mediaStorage, asMeera, asAdmin, asOtherManager, report } = await setup();
     expect((await upload(app, asMeera, report.id)).status).toBe(403);
+    expect((await upload(app, asAdmin, report.id)).status).toBe(403);
     expect((await upload(app, asOtherManager, report.id)).status).toBe(404);
     expect(mediaStorage.files.size).toBe(0);
   });
@@ -188,9 +190,10 @@ describe("GET /api/management/stats", () => {
     expect(other.body.data.byStatus).toEqual({ OPEN: 0, IN_PROGRESS: 0, RESOLVED: 0, REJECTED: 0 });
   });
 
-  it("is for managers and admins only", async () => {
-    const { app, asMeera } = await setup();
+  it("is for managers only", async () => {
+    const { app, asMeera, asAdmin } = await setup();
     expect((await request(app).get("/api/management/stats")).status).toBe(401);
     expect((await request(app).get("/api/management/stats").set("Cookie", asMeera)).status).toBe(403);
+    expect((await request(app).get("/api/management/stats").set("Cookie", asAdmin)).status).toBe(403);
   });
 });

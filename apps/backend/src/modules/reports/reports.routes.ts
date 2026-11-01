@@ -20,8 +20,8 @@ export function reportsRouter(deps: { service: ReportsService; requireAuth: Requ
   router.post("/:id/votes", controller.vote);
   router.delete("/:id/votes", controller.unvote);
   // Managers and admins only (docs/API_CONTRACT.md Phase 7).
-  router.patch("/:id/status", requireRole("MANAGER", "ADMIN"), controller.changeStatus);
-  router.post("/:id/media", requireRole("MANAGER", "ADMIN"), uploadPhoto, controller.addResolutionPhoto);
+  router.patch("/:id/status", requireRole("MANAGER"), controller.changeStatus);
+  router.post("/:id/media", requireRole("MANAGER"), uploadPhoto, controller.addResolutionPhoto);
 
   return router;
 }

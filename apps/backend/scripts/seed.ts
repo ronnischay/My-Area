@@ -1,5 +1,6 @@
 /**
- * Fills the development database with a demo society, its members and ten reports (docs/DATABASE.md §7).
+ * Fills the development database with a demo admin (in no society), a demo society, its members and
+ * ten reports (docs/DATABASE.md §7).
  *
  *   npm run db:seed -w backend
  *
@@ -33,7 +34,7 @@ async function main(): Promise<number> {
       console.log("Demo data is already in the database; nothing changed.");
       return 0;
     }
-    console.log(`Created the demo society with ${result.users} members and ${result.reports} reports.`);
+    console.log(`Created ${result.users} demo accounts and ${result.reports} reports. The admin runs societies from outside them.`);
     console.log("Sign in with any of these emails and SEED_PASSWORD:");
     for (const user of SEED_USERS) console.log(`  ${user.role.padEnd(8)} ${user.email}`);
     return 0;

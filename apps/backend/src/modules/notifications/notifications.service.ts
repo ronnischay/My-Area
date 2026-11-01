@@ -1,7 +1,7 @@
 import type { Logger } from "../../lib/logger.js";
 import type { EmailSender } from "../../providers/email.provider.js";
 import type { ReportRecord } from "../reports/reports.types.js";
-import type { NotificationsRepository, StaffMember } from "./notifications.repository.js";
+import type { NotificationsRepository, Recipient } from "./notifications.repository.js";
 import { newReportEmail } from "./templates/new-report.js";
 
 export interface NotificationsService {
@@ -18,24 +18,22 @@ export interface NotificationsServiceDeps {
 }
 
 /**
- * D022: every ACTIVE manager of the report's society; if there is none, the society's ACTIVE admins.
+ * D022, D028: every ACTIVE manager of the report's society (no admin fallback: admins belong to none).
  * The reporter is never emailed about their own report.
  */
-export function chooseRecipients(staff: StaffMember[], reporterId: string): StaffMember[] {
-  const others = staff.filter((member) => member.id !== reporterId);
-  const managers = others.filter((member) => member.role === "MANAGER");
-  return managers.length > 0 ? managers : others.filter((member) => member.role === "ADMIN");
+export function chooseRecipients(managers: Recipient[], reporterId: string): Recipient[] {
+  return managers.filter((manager) => manager.id !== reporterId);
 }
 
 export function createNotificationsService({ repository, emailSender, logger, appUrl }: NotificationsServiceDeps): NotificationsService {
   return {
     async newReport(societyId, report) {
-      const society = await repository.findSocietyStaff(societyId);
+      const society = await repository.findSocietyManagers(societyId);
       if (!society) throw new Error("society not found for new-report email");
 
-      const recipients = chooseRecipients(society.staff, report.createdBy.id);
+      const recipients = chooseRecipients(society.managers, report.createdBy.id);
       if (recipients.length === 0) {
-        logger.warn("new-report email not sent: no active manager or admin to notify", { reportId: report.id });
+        logger.warn("new-report email not sent: no active manager to notify", { reportId: report.id });
         return;
       }
 

@@ -1,4 +1,4 @@
-import { count, eq } from "drizzle-orm";
+import { count } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { testDatabaseUrl, useTestDatabase } from "../../test/helpers/db.js";
 import { seedDemoData, SEED_USERS } from "./seed.js";
@@ -10,15 +10,18 @@ const passwordHash = "scrypt$1024$8$1$c2FsdA$a2V5";
 describe.skipIf(!testDatabaseUrl)("seedDemoData (PostgreSQL)", () => {
   const db = useTestDatabase();
 
-  it("creates one society, four active members and ten reports, and is safe to run twice", async () => {
+  it("creates an admin outside the society, one society with three members and ten reports, and is safe to run twice", async () => {
     expect(await seedDemoData(db, { passwordHash, now })).toEqual({ created: true, users: 4, reports: 10 });
     expect(await seedDemoData(db, { passwordHash, now })).toEqual({ created: false });
 
     const [society] = await db.select().from(societies);
     expect(await db.select({ n: count() }).from(societies)).toEqual([{ n: 1 }]);
-    const members = await db.select().from(users).where(eq(users.societyId, society!.id));
-    expect(members.map((m) => m.email).sort()).toEqual(SEED_USERS.map((u) => u.email).sort());
-    expect(members.every((m) => m.status === "ACTIVE" && m.passwordHash === passwordHash)).toBe(true);
+    const all = await db.select().from(users);
+    expect(all.every((m) => m.status === "ACTIVE" && m.passwordHash === passwordHash)).toBe(true);
+    expect(all.filter((m) => m.societyId === society!.id).map((m) => m.email).sort()).toEqual(
+      SEED_USERS.filter((u) => u.role !== "ADMIN").map((u) => u.email).sort(),
+    );
+    expect(all.find((m) => m.role === "ADMIN")).toMatchObject({ email: "asha.rao@greenpark.example", societyId: null });
 
     const rows = await db.select().from(reports);
     expect(rows).toHaveLength(10);

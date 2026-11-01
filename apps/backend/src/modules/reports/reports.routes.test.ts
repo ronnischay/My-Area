@@ -5,13 +5,13 @@ import { addReport, addReportMedia, addSociety, addUser, sessionCookie } from ".
 import { GPS_MARKER, makeJpeg, makePng, makeTruncatedJpeg, makeWebp } from "../../../test/helpers/images.js";
 import { MAX_PHOTO_BYTES } from "../media/media.constants.js";
 
-/** Two societies. Green Park has an admin, a manager and two residents; Lake View has one resident. */
+/** Two societies. Green Park has a manager and two residents; Lake View has one resident. Plus an admin, in neither. */
 async function setup() {
   const ctx = createTestApp();
   const { store, clock } = ctx;
   const greenPark = addSociety(store, { name: "Green Park Residency" });
   const lakeView = addSociety(store, { name: "Lake View Towers" });
-  const admin = await addUser(store, { role: "ADMIN", societyId: greenPark.id, name: "Asha Rao" });
+  const admin = await addUser(store, { role: "ADMIN", name: "Asha Rao" });
   const manager = await addUser(store, { role: "MANAGER", societyId: greenPark.id, name: "Rohit Sharma" });
   const meera = await addUser(store, { role: "RESIDENT", societyId: greenPark.id, name: "Meera Iyer" });
   const farhan = await addUser(store, { role: "RESIDENT", societyId: greenPark.id, name: "Farhan Qureshi" });
@@ -55,21 +55,20 @@ function postReport(
 }
 
 describe("access to /api/reports", () => {
-  it("needs a session and a society", async () => {
-    const { app, store, clock } = await setup();
-    const newAdmin = await addUser(store, { role: "ADMIN" });
+  it("needs a session and a society, so admins (who belong to none) are refused", async () => {
+    const { app, asAdmin } = await setup();
 
     expect((await request(app).get("/api/reports")).status).toBe(401);
     expect((await request(app).post("/api/reports").send(pothole)).status).toBe(401);
 
-    const noSociety = await request(app).get("/api/reports").set("Cookie", sessionCookie(store, newAdmin.id, clock.now));
-    expect(noSociety.status).toBe(403);
-    expect(noSociety.body.error.code).toBe("SOCIETY_REQUIRED");
+    const admin = await request(app).get("/api/reports").set("Cookie", asAdmin);
+    expect(admin.status).toBe(403);
+    expect(admin.body.error.code).toBe("SOCIETY_REQUIRED");
   });
 
-  it("is open to residents, managers and admins of the society", async () => {
-    const { app, asAdmin, asManager, asMeera } = await setup();
-    for (const cookie of [asAdmin, asManager, asMeera]) {
+  it("is open to residents and managers of the society", async () => {
+    const { app, asManager, asMeera } = await setup();
+    for (const cookie of [asManager, asMeera]) {
       expect((await request(app).get("/api/reports").set("Cookie", cookie)).status).toBe(200);
     }
   });
@@ -395,15 +394,14 @@ describe("GET /api/reports/:id", () => {
     });
   });
 
-  it("shows the reporter's name to managers, admins and the author, but not to other residents", async () => {
-    const { app, store, greenPark, meera, asMeera, asFarhan, asManager, asAdmin } = await setup();
+  it("shows the reporter's name to managers and the author, but not to other residents", async () => {
+    const { app, store, greenPark, meera, asMeera, asFarhan, asManager } = await setup();
     const report = addReport(store, { societyId: greenPark.id, createdById: meera.id });
     const createdBy = async (cookie: string) =>
       (await request(app).get(`/api/reports/${report.id}`).set("Cookie", cookie)).body.data.createdBy;
 
     expect(await createdBy(asMeera)).toEqual({ id: meera.id, name: "Meera Iyer" });
     expect(await createdBy(asManager)).toEqual({ id: meera.id, name: "Meera Iyer" });
-    expect(await createdBy(asAdmin)).toEqual({ id: meera.id, name: "Meera Iyer" });
     expect(await createdBy(asFarhan)).toBeNull();
   });
 

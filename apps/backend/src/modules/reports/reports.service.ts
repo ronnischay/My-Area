@@ -17,9 +17,9 @@ export interface ReportsService {
   create(auth: SocietyAuthContext, input: CreateReportInput, photo: PreparedPhoto): Promise<ReportRecord>;
   list(auth: SocietyAuthContext, query: ListReportsQuery): Promise<{ items: ReportSummaryRecord[]; total: number }>;
   get(auth: SocietyAuthContext, reportId: string): Promise<ReportRecord>;
-  /** MANAGER/ADMIN (enforced by the route). 404 unknown / other society, 409 not an allowed transition. */
+  /** MANAGER (enforced by the route). 404 unknown / other society, 409 not an allowed transition. */
   changeStatus(auth: SocietyAuthContext, reportId: string, input: UpdateStatusInput): Promise<ReportRecord>;
-  /** MANAGER/ADMIN: evidence that the problem was fixed. */
+  /** MANAGER: evidence that the problem was fixed. */
   addResolutionPhoto(auth: SocietyAuthContext, reportId: string, photo: PreparedPhoto): Promise<ReportMediaRecord>;
   countByStatus(auth: SocietyAuthContext): Promise<Record<ReportStatus, number>>;
   /** Thumbs-up: any member, not on their own report, only while the report is OPEN or IN_PROGRESS. */

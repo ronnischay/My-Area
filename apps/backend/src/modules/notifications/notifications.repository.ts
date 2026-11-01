@@ -1,30 +1,29 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import { societies, users } from "../../db/schema/index.js";
 
-export interface StaffMember {
+export interface Recipient {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN" | "MANAGER";
 }
 
-/** Who can be told about a new report: the society's ACTIVE managers and admins. */
+/** Who is told about a new report: the society's ACTIVE managers (admins belong to no society, D028). */
 export interface NotificationsRepository {
-  findSocietyStaff(societyId: string): Promise<{ societyName: string; staff: StaffMember[] } | null>;
+  findSocietyManagers(societyId: string): Promise<{ societyName: string; managers: Recipient[] } | null>;
 }
 
 export function createNotificationsRepository(db: Database): NotificationsRepository {
   return {
-    async findSocietyStaff(societyId) {
+    async findSocietyManagers(societyId) {
       const [society] = await db.select({ name: societies.name }).from(societies).where(eq(societies.id, societyId)).limit(1);
       if (!society) return null;
-      const rows = await db
-        .select({ id: users.id, name: users.name, email: users.email, role: users.role })
+      const managers = await db
+        .select({ id: users.id, name: users.name, email: users.email })
         .from(users)
-        .where(and(eq(users.societyId, societyId), eq(users.status, "ACTIVE"), inArray(users.role, ["ADMIN", "MANAGER"])))
+        .where(and(eq(users.societyId, societyId), eq(users.status, "ACTIVE"), eq(users.role, "MANAGER")))
         .orderBy(users.createdAt);
-      return { societyName: society.name, staff: rows.map((row) => ({ ...row, role: row.role === "ADMIN" ? "ADMIN" : "MANAGER" })) };
+      return { societyName: society.name, managers };
     },
   };
 }

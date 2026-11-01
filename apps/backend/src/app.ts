@@ -30,7 +30,7 @@ import type { SocietiesRepository } from "./modules/societies/societies.reposito
 import { societiesRouter } from "./modules/societies/societies.routes.js";
 import { createSocietiesService } from "./modules/societies/societies.service.js";
 import type { UsersRepository } from "./modules/users/users.repository.js";
-import { usersRouter } from "./modules/users/users.routes.js";
+import { membersRouter } from "./modules/users/users.routes.js";
 import { createUsersService } from "./modules/users/users.service.js";
 import type { EmailSender } from "./providers/email.provider.js";
 import type { MediaStorage } from "./providers/media-storage.js";
@@ -103,17 +103,17 @@ export function createApp({
     "/api/auth",
     authRouter({ service: authService, requireAuth: authenticated, secureCookies: config.nodeEnv === "production" }),
   );
+  const societiesService = createSocietiesService({ repository: repositories.societies });
+  // Before /api/societies: that router is admin-only for everything under it, and managers use members.
   app.use(
-    "/api/societies",
-    societiesRouter({ service: createSocietiesService({ repository: repositories.societies }), requireAuth: authenticated }),
-  );
-  app.use(
-    "/api/admin/users",
-    usersRouter({
+    "/api/societies/:societyId/members",
+    membersRouter({
       service: createUsersService({ repository: repositories.users, emailSender, logger, clock, appUrl: config.appUrl }),
+      societies: societiesService,
       requireAuth: authenticated,
     }),
   );
+  app.use("/api/societies", societiesRouter({ service: societiesService, requireAuth: authenticated }));
 
   const reportsService = createReportsService({
     repository: repositories.reports,

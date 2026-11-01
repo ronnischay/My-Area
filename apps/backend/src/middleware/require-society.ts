@@ -5,7 +5,7 @@ import { getAuth } from "./require-auth.js";
 
 export type SocietyAuthContext = AuthContext & { societyId: string };
 
-/** 403 SOCIETY_REQUIRED for an admin who hasn't created a society yet. Mount after requireAuth. */
+/** 403 SOCIETY_REQUIRED for a user outside every society: admins (D028). Mount after requireAuth. */
 export const requireSociety: RequestHandler = (req, _res, next) => {
   getSocietyAuth(req);
   next();
@@ -15,7 +15,7 @@ export const requireSociety: RequestHandler = (req, _res, next) => {
 export function getSocietyAuth(req: Request): SocietyAuthContext {
   const auth = getAuth(req);
   if (!auth.societyId) {
-    throw new AppError(403, "SOCIETY_REQUIRED", "Set up your society first.");
+    throw new AppError(403, "SOCIETY_REQUIRED", "This is for members of a society.");
   }
   return { ...auth, societyId: auth.societyId };
 }

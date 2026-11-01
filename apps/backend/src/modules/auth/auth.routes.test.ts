@@ -146,7 +146,7 @@ describe("invites", () => {
   async function setup() {
     const ctx = createTestApp();
     const society = addSociety(ctx.store, { name: "Green Park Residency" });
-    const admin = await addUser(ctx.store, { role: "ADMIN", societyId: society.id });
+    const admin = await addUser(ctx.store, { role: "ADMIN" });
     const invitee = await addUser(ctx.store, {
       email: "farhan.q@yahoo.com",
       name: "Farhan Qureshi",

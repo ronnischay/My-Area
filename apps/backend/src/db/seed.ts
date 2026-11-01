@@ -129,8 +129,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export type SeedResult = { created: false } | { created: true; users: number; reports: number };
 
 /**
- * Creates the demo society, its four members (ACTIVE, all with `passwordHash`) and ten reports in one
- * transaction. Does nothing when the demo admin already exists, so it is safe to run twice.
+ * Creates the demo admin (in no society, D028), the demo society with its three members (all ACTIVE,
+ * all with `passwordHash`) and ten reports in one transaction. Does nothing when the demo admin
+ * already exists, so it is safe to run twice.
  */
 export async function seedDemoData(db: Database, { passwordHash, now }: { passwordHash: string; now: Date }): Promise<SeedResult> {
   const [admin] = SEED_USERS;
@@ -147,7 +148,14 @@ export async function seedDemoData(db: Database, { passwordHash, now }: { passwo
     for (const user of SEED_USERS) {
       const [row] = await tx
         .insert(users)
-        .values({ societyId: society.id, email: user.email, name: user.name, role: user.role, status: "ACTIVE", passwordHash })
+        .values({
+          societyId: user.role === "ADMIN" ? null : society.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          status: "ACTIVE",
+          passwordHash,
+        })
         .returning({ id: users.id });
       if (!row) throw new Error("user insert returned no row");
       ids[user.key] = row.id;

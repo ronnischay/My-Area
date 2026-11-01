@@ -33,6 +33,10 @@ export async function addUser(
     invitedById?: string | null;
   } = {},
 ): Promise<UserRow> {
+  // Mirrors users_society_required_ck: admins never belong to a society, everyone else always does (D028).
+  if ((options.role === "ADMIN") !== (options.societyId == null) && options.role !== undefined) {
+    throw new Error(`addUser: ${options.role} ${options.role === "ADMIN" ? "can't have" : "needs"} a societyId`);
+  }
   const status = options.status ?? "ACTIVE";
   const password = options.password === undefined ? (status === "INVITED" ? null : TEST_PASSWORD) : options.password;
   const id = store.newId();

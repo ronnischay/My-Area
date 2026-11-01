@@ -175,13 +175,21 @@ export function createFakeAuthRepository(store: InMemoryStore): AuthRepository {
 
 export function createFakeSocietiesRepository(store: InMemoryStore): SocietiesRepository {
   return {
-    async createForAdmin(adminId, input) {
-      const admin = store.users.get(adminId);
-      if (!admin) throw new Error("admin not found");
-      if (admin.societyId) return "ALREADY_EXISTS";
+    async list() {
+      const count = (societyId: string, role: UserRole) => [...store.users.values()].filter((u) => u.societyId === societyId && u.role === role).length;
+      return [...store.societies.values()]
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .map((society) => ({ ...society, managerCount: count(society.id, "MANAGER"), residentCount: count(society.id, "RESIDENT") }));
+    },
+
+    async findById(societyId) {
+      const society = store.societies.get(societyId);
+      return society ? { ...society } : null;
+    },
+
+    async create(input) {
       const society: SocietyRow = { id: store.newId(), ...input, createdAt: store.nextCreatedAt() };
       store.societies.set(society.id, society);
-      admin.societyId = society.id;
       return { ...society };
     },
 
@@ -230,14 +238,15 @@ export function createFakeUsersRepository(store: InMemoryStore): UsersRepository
       return user ? toMember(user) : null;
     },
 
-    async findInviter(adminId) {
-      const admin = store.users.get(adminId);
-      const society = admin?.societyId ? store.societies.get(admin.societyId) : undefined;
-      return admin && society ? { name: admin.name, societyName: society.name } : null;
+    async findInviter(inviterId, societyId) {
+      const inviter = store.users.get(inviterId);
+      const society = store.societies.get(societyId);
+      return inviter && society ? { name: inviter.name, societyName: society.name } : null;
     },
 
     async createInvitedMember({ societyId, invitedById, name, email, role, invite }) {
-      if ([...store.users.values()].some((u) => u.email === email)) return "EMAIL_TAKEN";
+      const existing = [...store.users.values()].find((u) => u.email === email);
+      if (existing) return { conflict: existing.role === "ADMIN" ? "ADMIN" : existing.societyId === societyId ? "THIS_SOCIETY" : "OTHER_SOCIETY" };
       const user: UserRow = {
         id: store.newId(),
         societyId,
@@ -466,14 +475,14 @@ export class FakeMediaStorage implements MediaStorage {
 
 export function createFakeNotificationsRepository(store: InMemoryStore): NotificationsRepository {
   return {
-    async findSocietyStaff(societyId) {
+    async findSocietyManagers(societyId) {
       const society = store.societies.get(societyId);
       if (!society) return null;
-      const staff = [...store.users.values()]
-        .filter((u) => u.societyId === societyId && u.status === "ACTIVE" && (u.role === "ADMIN" || u.role === "MANAGER"))
+      const managers = [...store.users.values()]
+        .filter((u) => u.societyId === societyId && u.status === "ACTIVE" && u.role === "MANAGER")
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-        .map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role === "ADMIN" ? ("ADMIN" as const) : ("MANAGER" as const) }));
-      return { societyName: society.name, staff };
+        .map((u) => ({ id: u.id, name: u.name, email: u.email }));
+      return { societyName: society.name, managers };
     },
   };
 }

@@ -6,13 +6,13 @@ import { makeJpeg } from "../../../test/helpers/images.js";
 import { chooseRecipients } from "./notifications.service.js";
 import { newReportEmail } from "./templates/new-report.js";
 
-/** Green Park: admin, two managers (one disabled, one invited), a resident. Lake View: a manager. */
+/** An admin (in no society). Green Park: two active managers, one disabled, one invited, a resident. Lake View: a manager. */
 async function setup() {
   const ctx = createTestApp();
   const { store, clock } = ctx;
   const greenPark = addSociety(store, { name: "Green Park Residency" });
   const lakeView = addSociety(store, { name: "Lake View Towers" });
-  const admin = await addUser(store, { role: "ADMIN", societyId: greenPark.id, name: "Asha Rao", email: "asha@greenpark.example" });
+  const admin = await addUser(store, { role: "ADMIN", name: "Asha Rao", email: "asha@greenpark.example" });
   const rohit = await addUser(store, { role: "MANAGER", societyId: greenPark.id, name: "Rohit Sharma", email: "rohit@greenpark.example" });
   const kavya = await addUser(store, { role: "MANAGER", societyId: greenPark.id, name: "Kavya Nair", email: "kavya@greenpark.example" });
   await addUser(store, { role: "MANAGER", societyId: greenPark.id, status: "DISABLED", email: "old.manager@greenpark.example" });
@@ -56,18 +56,6 @@ describe("new-report email", () => {
     expect(toRohit?.text).toContain(`Open the report, with its photo: http://localhost:3000/reports/${res.body.data.id}`);
   });
 
-  it("falls back to the society's admin when there is no active manager", async () => {
-    const { app, store, asMeera, rohit, kavya, emailSender, backgroundTasks } = await setup();
-    store.users.get(rohit.id)!.status = "DISABLED";
-    store.users.get(kavya.id)!.role = "RESIDENT";
-
-    await postReport(app, asMeera);
-    await backgroundTasks.idle();
-
-    expect(emailSender.sent.map((m) => m.to)).toEqual(["asha@greenpark.example"]);
-    expect(emailSender.sent[0]?.text).toContain("Hi Asha Rao,");
-  });
-
   it("doesn't email a manager about their own report", async () => {
     const { app, asRohit, emailSender, backgroundTasks } = await setup();
     await postReport(app, asRohit);
@@ -75,20 +63,17 @@ describe("new-report email", () => {
     expect(emailSender.sent.map((m) => m.to)).toEqual(["kavya@greenpark.example"]);
   });
 
-  it("logs a warning and sends nothing when nobody can be notified", async () => {
-    const { app, store, cookie, emailSender, backgroundTasks, logger } = await setup();
-    const soloAdmin = await addUser(store, { role: "ADMIN" });
-    const society = addSociety(store, { name: "Solo Villas" });
-    store.users.get(soloAdmin.id)!.societyId = society.id;
+  it("emails nobody, not even an admin, and logs a warning when the society has no active manager", async () => {
+    const { app, store, asMeera, rohit, kavya, emailSender, backgroundTasks, logger } = await setup();
+    store.users.get(rohit.id)!.status = "DISABLED";
+    store.users.get(kavya.id)!.role = "RESIDENT";
 
-    const res = await postReport(app, cookie(soloAdmin.id));
+    const res = await postReport(app, asMeera);
     await backgroundTasks.idle();
 
     expect(res.status).toBe(201);
     expect(emailSender.sent).toEqual([]);
-    expect(logger.warn).toHaveBeenCalledWith("new-report email not sent: no active manager or admin to notify", {
-      reportId: res.body.data.id,
-    });
+    expect(logger.warn).toHaveBeenCalledWith("new-report email not sent: no active manager to notify", { reportId: res.body.data.id });
   });
 
   it("keeps sending to the others when one address fails, and logs without the address", async () => {
@@ -133,17 +118,15 @@ describe("new-report email", () => {
 });
 
 describe("chooseRecipients", () => {
-  const staff = [
-    { id: "a", name: "Admin", email: "a@x", role: "ADMIN" as const },
-    { id: "m1", name: "M1", email: "m1@x", role: "MANAGER" as const },
-    { id: "m2", name: "M2", email: "m2@x", role: "MANAGER" as const },
+  const managers = [
+    { id: "m1", name: "M1", email: "m1@x" },
+    { id: "m2", name: "M2", email: "m2@x" },
   ];
 
-  it("prefers managers, falls back to admins, never includes the reporter", () => {
-    expect(chooseRecipients(staff, "resident").map((s) => s.id)).toEqual(["m1", "m2"]);
-    expect(chooseRecipients(staff, "m1").map((s) => s.id)).toEqual(["m2"]);
-    expect(chooseRecipients(staff.slice(0, 2), "m1").map((s) => s.id)).toEqual(["a"]);
-    expect(chooseRecipients(staff.slice(0, 1), "a")).toEqual([]);
+  it("is every manager but the reporter", () => {
+    expect(chooseRecipients(managers, "resident").map((s) => s.id)).toEqual(["m1", "m2"]);
+    expect(chooseRecipients(managers, "m1").map((s) => s.id)).toEqual(["m2"]);
+    expect(chooseRecipients(managers.slice(0, 1), "m1")).toEqual([]);
   });
 });
 

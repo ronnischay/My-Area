@@ -47,7 +47,7 @@ describe.skipIf(!testDatabaseUrl)("auth repository (PostgreSQL)", () => {
     const auth = createAuthRepository(db);
     const members = createUsersRepository(db);
     const society = await insertSociety(db);
-    const admin = await insertUser(db, { email: "asha@example.com", role: "ADMIN", societyId: society.id });
+    const admin = await insertUser(db, { email: "asha@example.com", role: "ADMIN", societyId: null });
     const member = await members.createInvitedMember({
       societyId: society.id,
       invitedById: admin.id,
@@ -56,7 +56,7 @@ describe.skipIf(!testDatabaseUrl)("auth repository (PostgreSQL)", () => {
       role: "RESIDENT",
       invite: { tokenHash: hash("i"), expiresAt: hours(72) },
     });
-    if (member === "EMAIL_TAKEN") throw new Error("unexpected");
+    if ("conflict" in member) throw new Error("unexpected");
 
     expect(await auth.findInvite(hash("i"), hours(73))).toBeNull();
     expect(await auth.findInvite(hash("i"), now)).toMatchObject({ userId: member.id, societyName: "Green Park Residency" });
