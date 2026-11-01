@@ -8,7 +8,7 @@ export const users = pgTable(
   "users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // Null only for an ADMIN who has not created a society yet (users_society_required_ck).
+    // Null exactly for an ADMIN: admins run societies from outside them (users_society_required_ck, D028).
     societyId: uuid("society_id").references(() => societies.id, { onDelete: "restrict" }),
     // Stored trimmed + lower-cased by the services.
     email: varchar("email", { length: 255 }).notNull(),
@@ -29,7 +29,7 @@ export const users = pgTable(
     index("users_society_id_role_idx").on(t.societyId, t.role),
     // Target of reports_created_by_same_society_fk (a reporter must be in the report's society).
     unique("users_society_id_id_uq").on(t.societyId, t.id),
-    check("users_society_required_ck", sql`${t.role} = 'ADMIN' OR ${t.societyId} IS NOT NULL`),
+    check("users_society_required_ck", sql`(${t.role} = 'ADMIN') = (${t.societyId} IS NULL)`),
     check("users_active_has_password_ck", sql`${t.status} <> 'ACTIVE' OR ${t.passwordHash} IS NOT NULL`),
   ],
 );
