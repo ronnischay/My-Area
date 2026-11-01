@@ -1,6 +1,6 @@
 # MyArea
 
-A society admin sets up their residential society and invites residents and managers. Members sign in, report neighbourhood problems (a photo, category and human-readable location), and managers review and resolve them. This is a four-day MVP built as an npm Workspaces monorepo: **Next.js** frontend, **Express** backend and **PostgreSQL via Drizzle ORM**.
+An admin creates residential societies and invites each one's managers and residents; the admin belongs to none of them. Members sign in, report neighbourhood problems (a photo, category and human-readable location), and managers review and resolve them. This is a four-day MVP built as an npm Workspaces monorepo: **Next.js** frontend, **Express** backend and **PostgreSQL via Drizzle ORM**.
 
 > **Status:** Phase 2 complete (2026-10-28): PostgreSQL + Drizzle, login/sessions, invite-only membership, society setup and member management (backend API, tested). Next is Phase 3 (society-scoped reports API). The UI ("Courtyard" design, light default + dark toggle) comes in Phase 6. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
 > Items marked *(Phase N)* don't exist yet. Everything else was verified on 2026-10-28.
@@ -14,7 +14,7 @@ A society admin sets up their residential society and invites residents and mana
 | Database | PostgreSQL 17 · Drizzle ORM 0.45 (`drizzle-orm`, `pg`) · `drizzle-kit` 0.31 migrations |
 | Auth | Email + password (scrypt), DB sessions in an httpOnly cookie, roles Admin/Manager/Resident, invite-only |
 | Media | Report photos on the server's disk (`UPLOAD_DIR`): checked, turned upright, resized to ≤ 2000 px and saved as JPEG without metadata (sharp), served only to the society's members |
-| Email | SMTP via nodemailer (console sender for local dev): invites, and a new-report email to the society's managers (admins if none), sent after the response |
+| Email | SMTP via nodemailer (console sender for local dev): invites, and a new-report email to the society's managers, sent after the response |
 | Design | "Courtyard": Bricolage Grotesque + Figtree, brand green `#07ab12` (`#057a0d` for white-text buttons/links), light default + dark toggle |
 | Tests | Vitest 5 · React Testing Library · Supertest |
 
@@ -51,9 +51,9 @@ npm run dev                                               # backend http://local
 Check it's working: `curl localhost:4000/health` returns `{"status":"ok"}`, and http://localhost:3000 shows the home page.
 The backend refuses to start without `DATABASE_URL`. All other variables have local defaults; see `apps/backend/.env.example`.
 
-Open http://localhost:3000 and sign in. A new admin is taken to society setup first. Screens not built yet (members, reports) can be used through the API ([`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)). With `EMAIL_PROVIDER=console`, the invite link appears in the backend log. Reports: `POST /api/reports` (multipart: `title`, `description`, `category`, `locationText` and one `photo`, JPEG/PNG/WebP up to 5 MB), `GET /api/reports`, `GET /api/reports/:id`; photos are served at `GET /api/media/:id` to signed-in members of the report's society. Managers and admins change a report's status (`PATCH /api/reports/:id/status`, with a timeline everyone can see), add a resolution photo, and see counts at `/management`.
+Open http://localhost:3000 and sign in. An admin lands on **Societies** (`/admin/societies`): create a society, open it, invite its managers and residents, and edit its details. Admins have no reports. Managers can invite residents to their own society from **Members** (`/members`). A person belongs to one society only: inviting someone who is already in another society is refused. The API is described in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md). With `EMAIL_PROVIDER=console`, the invite link appears in the backend log. Reports: `POST /api/reports` (multipart: `title`, `description`, `category`, `locationText` and one `photo`, JPEG/PNG/WebP up to 5 MB), `GET /api/reports`, `GET /api/reports/:id`; photos are served at `GET /api/media/:id` to signed-in members of the report's society. Managers change a report's status (`PATCH /api/reports/:id/status`, with a timeline everyone can see), add a resolution photo, and see counts at `/management`.
 
-For demo data, run `npm run db:seed -w backend`. It adds the society "Green Park Residency" with an admin (`asha.rao@greenpark.example`), a manager (`rohit.sharma@greenpark.example`), two residents (`meera.iyer@…`, `farhan.qureshi@…`) and 10 reports. All four sign in with the `SEED_PASSWORD` from `apps/backend/.env`. Running it again changes nothing.
+For demo data, run `npm run db:seed -w backend`. It adds an admin (`asha.rao@greenpark.example`, in no society) and the society "Green Park Residency" with a manager (`rohit.sharma@greenpark.example`), two residents (`meera.iyer@…`, `farhan.qureshi@…`) and 10 reports. All four sign in with the `SEED_PASSWORD` from `apps/backend/.env`. Running it again changes nothing.
 
 ## Scripts
 Run from the repo root.
@@ -68,8 +68,8 @@ Run from the repo root.
 | `npm run db:generate -w backend -- --name <change>` | Generate a SQL migration from the Drizzle schema (read the SQL before applying) |
 | `npm run db:migrate -w backend` | Apply migrations to `DATABASE_URL` |
 | `npm run db:check` / `db:studio` `-w backend` | Migration consistency / local DB browser |
-| `npm run db:seed -w backend` | Demo society, members and reports; needs `SEED_PASSWORD`; safe to re-run; refuses to run in production |
-| `npm run user:create-admin -w backend -- --email <e> --name "<n>"` | Create a society admin, the only way to create one (non-interactive: set `ADMIN_PASSWORD`) |
+| `npm run db:seed -w backend` | Demo admin, society, members and reports; needs `SEED_PASSWORD`; safe to re-run; refuses to run in production |
+| `npm run user:create-admin -w backend -- --email <e> --name "<n>"` | Create an admin, the only way to create one (non-interactive: set `ADMIN_PASSWORD`) |
 | `npm run test:integration -w backend` | Repository tests against `DATABASE_URL_TEST` (must be a `*_test` database) |
 
 Production-style run: `npm run build` then `npm run start -w backend` and `npm run start -w frontend`.
@@ -105,7 +105,7 @@ Each app has its own committed `.env.example` with placeholders: [`apps/backend/
 
 ## Known limitations (MVP)
 - No map, geocoding or coordinates. Location is free text.
-- One society per admin and per user; members join by invite only; no forgot/change-password yet (see `docs/features/auth.md`).
+- Every admin manages every society (no per-admin ownership); a manager or resident belongs to exactly one society; members join by invite only; no forgot/change-password yet (see `docs/features/auth.md`).
 - Login rate limiting is in memory (per process, resets on restart).
 - Resolved and Rejected are final; the reporter isn't emailed when the status changes.
 - The theme preference is saved per device, not per account.
