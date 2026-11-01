@@ -13,10 +13,10 @@ describe("navigation by role", () => {
       </>,
     );
     expect(screen.getByRole("link", { name: "Mine" })).toHaveAttribute("href", "/reports?mine=true");
-    expect(screen.queryByRole("link", { name: /Management|Queue|Members|Society/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Management|Queue|Members|Societies/ })).not.toBeInTheDocument();
   });
 
-  it("managers get Management and the Queue tab, but not admin pages", () => {
+  it("managers get Management, the Queue tab and Members, but not Societies", () => {
     render(
       <>
         <PillNav role="MANAGER" hasSociety />
@@ -25,13 +25,21 @@ describe("navigation by role", () => {
     );
     expect(screen.getByRole("link", { name: "Management" })).toHaveAttribute("href", "/management");
     expect(screen.getByRole("link", { name: "Queue" })).toHaveAttribute("href", "/management");
-    expect(screen.queryByRole("link", { name: "Members" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Members" })).toHaveAttribute("href", "/members");
+    expect(screen.queryByRole("link", { name: "Societies" })).not.toBeInTheDocument();
   });
 
-  it("admins also get Members and Society; nothing before the society exists", () => {
-    const { rerender } = render(<PillNav role="ADMIN" hasSociety />);
-    expect(screen.getAllByRole("link").map((l) => l.textContent)).toEqual(["Home", "Reports", "Management", "Members", "Society"]);
-    rerender(<PillNav role="ADMIN" hasSociety={false} />);
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  it("admins get only Societies (and Profile on phones): no reports, report button or queue", () => {
+    render(
+      <>
+        <PillNav role="ADMIN" hasSociety={false} />
+        <TabBar role="ADMIN" hasSociety={false} />
+      </>,
+    );
+    expect(screen.getAllByRole("link").map((l) => [l.textContent, l.getAttribute("href")])).toEqual([
+      ["Societies", "/admin/societies"],
+      ["Societies", "/admin/societies"],
+      ["Profile", "/profile"],
+    ]);
   });
 });

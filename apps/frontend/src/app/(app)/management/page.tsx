@@ -26,7 +26,7 @@ export default function ManagementPage({ searchParams }: PageProps<"/management"
 }
 
 async function Dashboard({ searchParams }: Pick<PageProps<"/management">, "searchParams">) {
-  const user = await requireRole("MANAGER", "ADMIN");
+  const user = await requireRole("MANAGER");
   const params = await searchParams;
   const status = isStatus(params.status) ? params.status : undefined;
   const page = Math.max(1, Math.floor(Number(params.page)) || 1);

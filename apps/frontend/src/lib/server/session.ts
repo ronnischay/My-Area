@@ -34,10 +34,10 @@ export async function requireUser(): Promise<CurrentUser> {
 
 export type MemberUser = CurrentUser & { society: Society };
 
-/** A signed-in user with a society. An admin without one is sent to set it up first. */
+/** A signed-in member of a society. Admins belong to none (D028), so they are sent to their societies. */
 export async function requireMember(): Promise<MemberUser> {
   const user = await requireUser();
-  if (!user.society) redirect("/admin/society/new");
+  if (!user.society) redirect("/admin/societies");
   return { ...user, society: user.society };
 }
 
@@ -45,5 +45,12 @@ export async function requireMember(): Promise<MemberUser> {
 export async function requireRole(...roles: UserRole[]): Promise<MemberUser> {
   const user = await requireMember();
   if (!roles.includes(user.role)) redirect("/");
+  return user;
+}
+
+/** A signed-in admin; anyone else is sent home. The API enforces the same rule. */
+export async function requireAdmin(): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") redirect("/");
   return user;
 }

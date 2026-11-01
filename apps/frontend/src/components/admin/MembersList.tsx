@@ -2,7 +2,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ROLE_LABELS } from "@/lib/format";
-import type { SocietyMember, UserStatus } from "@/types/api";
+import type { SocietyMember, UserRole, UserStatus } from "@/types/api";
 import { MemberActions } from "./MemberActions";
 
 const STATUS: Record<UserStatus, { label: string; tone: BadgeTone }> = {
@@ -13,13 +13,29 @@ const STATUS: Record<UserStatus, { label: string; tone: BadgeTone }> = {
 
 const dayFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
 
-/** Member rows as rounded cards (no table, so nothing scrolls sideways on phones). */
-export function MembersList({ members, currentUserId, filtered }: { members: SocietyMember[]; currentUserId: string; filtered: boolean }) {
+/**
+ * Member rows as rounded cards (no table, so nothing scrolls sideways on phones).
+ * Admins manage every member; managers can only resend a resident's invite, never their own row.
+ */
+export function MembersList({
+  societyId,
+  members,
+  currentUserId,
+  viewerRole,
+  filtered,
+}: {
+  societyId: string;
+  members: SocietyMember[];
+  currentUserId: string;
+  viewerRole: UserRole;
+  filtered: boolean;
+}) {
+  const isManager = viewerRole === "MANAGER";
   if (members.length === 0) {
     return (
       <EmptyState
         title={filtered ? "No members match" : "No members yet"}
-        description={filtered ? "Try another name, role or status." : "Invite your first neighbour to get started."}
+        description={filtered ? "Try another name, role or status." : "Invite the first manager or resident to get started."}
       />
     );
   }
@@ -27,7 +43,7 @@ export function MembersList({ members, currentUserId, filtered }: { members: Soc
   return (
     <ul className="flex flex-col gap-3">
       {members.map((member) => {
-        const editable = member.id !== currentUserId && member.role !== "ADMIN";
+        const editable = member.id !== currentUserId && (!isManager || (member.role === "RESIDENT" && member.status === "INVITED"));
         const status = STATUS[member.status];
         return (
           <li key={member.id} className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4 sm:flex-row sm:items-center">
@@ -51,7 +67,7 @@ export function MembersList({ members, currentUserId, filtered }: { members: Soc
             </div>
             {editable && (
               <div className="sm:w-36">
-                <MemberActions member={member} />
+                <MemberActions societyId={societyId} member={member} />
               </div>
             )}
           </li>

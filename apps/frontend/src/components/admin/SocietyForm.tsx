@@ -7,13 +7,12 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { ApiError, apiFetch } from "@/lib/api-client";
-import { reloadTo } from "@/lib/navigate";
-import type { Society } from "@/types/api";
+import type { DataResponse, Society } from "@/types/api";
 
 type Errors = { name?: string; addressText?: string };
 
-/** Create the society (POST) or edit it (PATCH). Limits mirror docs/API_CONTRACT.md Societies. */
-export function SocietyForm({ society }: { society?: Pick<Society, "name" | "addressText"> }) {
+/** Create a society (POST) or edit one (PATCH), admin only. Limits mirror docs/API_CONTRACT.md Societies. */
+export function SocietyForm({ society }: { society?: Pick<Society, "id" | "name" | "addressText"> }) {
   const router = useRouter();
   const editing = society !== undefined;
   const [name, setName] = useState(society?.name ?? "");
@@ -38,17 +37,16 @@ export function SocietyForm({ society }: { society?: Pick<Society, "name" | "add
 
     setPending(true);
     try {
-      await apiFetch(editing ? "/api/societies/current" : "/api/societies", {
+      const { data } = await apiFetch<DataResponse<Society>>(editing ? `/api/societies/${society.id}` : "/api/societies", {
         method: editing ? "PATCH" : "POST",
         body: { name, addressText },
       });
-      if (!editing) return reloadTo("/admin/users");
+      if (!editing) return router.push(`/admin/societies/${data.id}`);
       setSaved(true);
       setPending(false);
-      router.refresh(); // the header shows the society name
+      router.refresh(); // the page heading shows the society name
     } catch (error) {
       setPending(false);
-      if (error instanceof ApiError && error.code === "SOCIETY_ALREADY_EXISTS") return reloadTo("/");
       if (error instanceof ApiError && Object.keys(error.fieldErrors).length > 0) {
         setErrors({ name: error.fieldErrors.name?.[0], addressText: error.fieldErrors.addressText?.[0] });
         return;

@@ -37,12 +37,12 @@ describe("InviteMemberForm", () => {
     const fetchMock = vi.fn(async () => json(201, { data: member({}), meta: { invite: "SENT" } }));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
-    render(<InviteMemberForm />);
+    render(<InviteMemberForm societyId="s1" />);
 
     await fill(user);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/admin/users",
+      "/api/societies/s1/members",
       expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Priya Menon", email: "priya@example.com", role: "MANAGER" }) }),
     );
     expect(await screen.findByText("Invite sent to Priya.")).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe("InviteMemberForm", () => {
   it("warns when the member was saved but the email failed", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => json(201, { data: member({}), meta: { invite: "FAILED" } })));
     const user = userEvent.setup();
-    render(<InviteMemberForm />);
+    render(<InviteMemberForm societyId="s1" />);
     await fill(user);
     expect(await screen.findByText(/the invite email could not be sent\. Use Resend/)).toBeInTheDocument();
   });
@@ -66,7 +66,7 @@ describe("InviteMemberForm", () => {
       ),
     );
     const user = userEvent.setup();
-    render(<InviteMemberForm />);
+    render(<InviteMemberForm societyId="s1" />);
     await fill(user);
 
     expect(await screen.findByText("This email already has a MyArea account.")).toBeInTheDocument();
@@ -74,37 +74,59 @@ describe("InviteMemberForm", () => {
     expect(screen.getByLabelText("Email")).toHaveFocus();
     expect(screen.getByLabelText("Full name")).toHaveValue("Priya Menon");
   });
+
+  it("for a manager, has no role choice and invites a resident", async () => {
+    const fetchMock = vi.fn(async () => json(201, { data: member({}), meta: { invite: "SENT" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<InviteMemberForm societyId="s1" residentsOnly />);
+
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.getByText("They join as a resident.")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Full name"), "Priya Menon");
+    await user.type(screen.getByLabelText("Email"), "priya@example.com");
+    await user.click(screen.getByRole("button", { name: "Send invite" }));
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/societies/s1/members", expect.objectContaining({ body: JSON.stringify({ name: "Priya Menon", email: "priya@example.com", role: "RESIDENT" }) }));
+  });
 });
 
 describe("MembersList", () => {
   const members = [
-    member({ id: "admin", name: "Asha Rao", role: "ADMIN" }),
-    member({ id: "other-admin", name: "Vikram Das", role: "ADMIN" }),
+    member({ id: "rohit", name: "Rohit Sharma", role: "MANAGER" }),
     member({ id: "m1", name: "Meera Iyer" }),
     member({ id: "m2", name: "Priya Menon", status: "INVITED", inviteExpiresAt: "2026-10-31T13:10:00.000Z" }),
     member({ id: "m3", name: "Farhan Qureshi", status: "DISABLED", role: "MANAGER" }),
   ];
 
-  it("shows status as text and no actions on your own row or other admins", () => {
-    render(<MembersList members={members} currentUserId="admin" filtered={false} />);
+  it("gives an admin one action per member, and shows status as text", () => {
+    render(<MembersList societyId="s1" members={members} currentUserId="admin" viewerRole="ADMIN" filtered={false} />);
+    const rows = screen.getAllByRole("listitem");
+
+    expect(within(rows[0]!).getByRole("button", { name: "Manage Rohit Sharma" })).toBeInTheDocument();
+    expect(within(rows[1]!).getByRole("button", { name: "Manage Meera Iyer" })).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("Invited")).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("Invite expires 31 Oct")).toBeInTheDocument();
+    expect(within(rows[2]!).getByRole("button", { name: "Resend invite to Priya Menon" })).toBeInTheDocument();
+    expect(within(rows[3]!).getByText("Disabled")).toBeInTheDocument();
+    expect(within(rows[3]!).getByRole("button", { name: "Enable Farhan Qureshi" })).toBeInTheDocument();
+  });
+
+  it("lets a manager only resend a resident's invite, with no action on their own row", () => {
+    const list = [...members, member({ id: "m4", name: "Kabir Shah", role: "MANAGER", status: "INVITED" })];
+    render(<MembersList societyId="s1" members={list} currentUserId="rohit" viewerRole="MANAGER" filtered={false} />);
     const rows = screen.getAllByRole("listitem");
 
     expect(within(rows[0]!).getByText("(you)")).toBeInTheDocument();
-    expect(within(rows[0]!).queryByRole("button")).not.toBeInTheDocument();
-    expect(within(rows[1]!).queryByRole("button")).not.toBeInTheDocument();
-    expect(within(rows[2]!).getByRole("button", { name: "Manage Meera Iyer" })).toBeInTheDocument();
-    expect(within(rows[3]!).getByText("Invited")).toBeInTheDocument();
-    expect(within(rows[3]!).getByText("Invite expires 31 Oct")).toBeInTheDocument();
-    expect(within(rows[3]!).getByRole("button", { name: "Resend invite to Priya Menon" })).toBeInTheDocument();
-    expect(within(rows[4]!).getByText("Disabled")).toBeInTheDocument();
-    expect(within(rows[4]!).getByRole("button", { name: "Enable Farhan Qureshi" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(within(rows[2]!).getByRole("button", { name: "Resend invite to Priya Menon" })).toBeInTheDocument();
   });
 
   it("asks for confirmation before disabling, then sends the change", async () => {
     const fetchMock = vi.fn(async () => json(200, { data: member({ status: "DISABLED" }) }));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
-    render(<MembersList members={[member({})]} currentUserId="admin" filtered={false} />);
+    render(<MembersList societyId="s1" members={[member({})]} currentUserId="admin" viewerRole="ADMIN" filtered={false} />);
 
     await user.click(screen.getByRole("button", { name: "Manage Meera Iyer" }));
     await user.click(screen.getByRole("button", { name: "Disable member…" }));
@@ -112,13 +134,13 @@ describe("MembersList", () => {
     expect(fetchMock).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Disable member" }));
-    expect(fetchMock).toHaveBeenCalledWith("/api/admin/users/m1", expect.objectContaining({ method: "PATCH", body: '{"disabled":true}' }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/societies/s1/members/m1", expect.objectContaining({ method: "PATCH", body: '{"disabled":true}' }));
     expect(await screen.findByText("Meera is disabled and signed out.")).toBeInTheDocument();
     expect(refresh).toHaveBeenCalled();
   });
 
   it("explains an empty filtered result", () => {
-    render(<MembersList members={[]} currentUserId="admin" filtered />);
+    render(<MembersList societyId="s1" members={[]} currentUserId="admin" viewerRole="ADMIN" filtered />);
     expect(screen.getByRole("heading", { name: "No members match" })).toBeInTheDocument();
   });
 });

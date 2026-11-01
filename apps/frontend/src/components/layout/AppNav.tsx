@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import type { ReactNode } from "react";
 import type { UserRole } from "@/types/api";
 import { cn } from "@/lib/cn";
-import { HomeIcon, InboxIcon, ListIcon, PlusIcon, StarIcon, UserIcon } from "./icons";
+import { HomeIcon, InboxIcon, ListIcon, PlusIcon, StarIcon, UserIcon, UsersIcon } from "./icons";
 
 interface NavProps {
   role: UserRole;
-  /** False only for an admin who hasn't set up the society yet: nothing to navigate to. */
+  /** False for admins, who run societies from outside them (D028). */
   hasSociety: boolean;
 }
 
@@ -26,18 +27,20 @@ function useIsActive() {
 /** `md`+ : pill nav in the header (UI_UX_GUIDELINES §4). */
 export function PillNav({ role, hasSociety }: NavProps) {
   const isActive = useIsActive();
-  if (!hasSociety) return null;
-  const links = [
-    { href: "/", label: "Home" },
-    { href: "/reports", label: "Reports" },
-    ...(role === "MANAGER" || role === "ADMIN" ? [{ href: "/management", label: "Management" }] : []),
-    ...(role === "ADMIN"
-      ? [
-          { href: "/admin/users", label: "Members" },
-          { href: "/admin/society", label: "Society" },
-        ]
-      : []),
-  ];
+  if (role !== "ADMIN" && !hasSociety) return null;
+  const links =
+    role === "ADMIN"
+      ? [{ href: "/admin/societies", label: "Societies" }]
+      : [
+          { href: "/", label: "Home" },
+          { href: "/reports", label: "Reports" },
+          ...(role === "MANAGER"
+            ? [
+                { href: "/management", label: "Management" },
+                { href: "/members", label: "Members" },
+              ]
+            : []),
+        ];
 
   return (
     <nav aria-label="Main" className="hidden md:block">
@@ -68,7 +71,7 @@ export function PillNav({ role, hasSociety }: NavProps) {
 export function TabBar({ role, hasSociety }: NavProps) {
   const pathname = usePathname();
   const isActive = useIsActive();
-  if (!hasSociety || pathname === "/reports/new") return null;
+  if ((role !== "ADMIN" && !hasSociety) || pathname === "/reports/new") return null;
 
   const tab = (href: string, label: string, Icon: typeof HomeIcon) => {
     const active = isActive(href);
@@ -87,6 +90,25 @@ export function TabBar({ role, hasSociety }: NavProps) {
     );
   };
 
+  const bar = (children: ReactNode) => (
+    <nav
+      aria-label="Main"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+    >
+      <div className="mx-auto flex max-w-lg items-end gap-1 px-2 pt-1 pb-1">{children}</div>
+    </nav>
+  );
+
+  // Admins have no reports: only their societies and their profile.
+  if (role === "ADMIN") {
+    return bar(
+      <>
+        {tab("/admin/societies", "Societies", UsersIcon)}
+        {tab("/profile", "Profile", UserIcon)}
+      </>,
+    );
+  }
+
   return (
     <nav
       aria-label="Main"
@@ -104,8 +126,8 @@ export function TabBar({ role, hasSociety }: NavProps) {
           </span>
           Report
         </Link>
-        {/* Managers and admins work from the queue; residents follow their own reports. */}
-        {role === "MANAGER" || role === "ADMIN" ? tab("/management", "Queue", InboxIcon) : tab("/reports?mine=true", "Mine", StarIcon)}
+        {/* Managers work from the queue; residents follow their own reports. */}
+        {role === "MANAGER" ? tab("/management", "Queue", InboxIcon) : tab("/reports?mine=true", "Mine", StarIcon)}
         {tab("/profile", "Profile", UserIcon)}
       </div>
     </nav>

@@ -4,6 +4,7 @@ import { AppearanceSetting } from "@/components/auth/AppearanceSetting";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { Container } from "@/components/layout/Container";
 import { Avatar } from "@/components/ui/Avatar";
+import { ButtonLink } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ROLE_LABELS } from "@/lib/format";
 import { requireUser } from "@/lib/server/session";
@@ -24,6 +25,9 @@ export default function ProfilePage() {
       </section>
       <Suspense fallback={<Skeleton className="h-40" />}>
         <AccountDetails />
+      </Suspense>
+      <Suspense>
+        <SocietyLinks />
       </Suspense>
       <SignOutButton />
     </Container>
@@ -51,7 +55,8 @@ async function AccountDetails() {
   const rows = [
     { label: "Email", value: user.email },
     { label: "Role", value: ROLE_LABELS[user.role] },
-    { label: "Society", value: user.society?.name ?? "Not set up yet" },
+    // Admins run every society from outside (D028).
+    { label: "Society", value: user.society?.name ?? "All societies" },
   ];
   return (
     <section aria-labelledby="account" className="rounded-card border border-border bg-surface p-5">
@@ -67,5 +72,16 @@ async function AccountDetails() {
         ))}
       </dl>
     </section>
+  );
+}
+
+/** Phones have no header nav and the tab bar has no room, so managers reach Members from here. */
+async function SocietyLinks() {
+  const user = await requireUser();
+  if (user.role !== "MANAGER") return null;
+  return (
+    <ButtonLink href="/members" variant="secondary" size="lg">
+      Members
+    </ButtonLink>
   );
 }

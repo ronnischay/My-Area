@@ -33,7 +33,6 @@ export function MemberFilters({ q, role, status }: MemberFiltersProps) {
         </label>
         <Select id="member-role" name="role" defaultValue={role ?? ""} onChange={submit}>
           <option value="">All roles</option>
-          <option value="ADMIN">Admin</option>
           <option value="MANAGER">Manager</option>
           <option value="RESIDENT">Resident</option>
         </Select>

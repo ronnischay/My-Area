@@ -19,8 +19,8 @@ const ROLE_OPTIONS = [
   { value: "MANAGER", label: "Manager" },
 ] as const satisfies readonly { value: MemberRole; label: string }[];
 
-/** "Invite a neighbour" (side panel on lg+, its own page on phones). */
-export function InviteMemberForm() {
+/** "Invite a neighbour" to `societyId` (side panel on lg+, its own page on phones). Managers invite residents only. */
+export function InviteMemberForm({ societyId, residentsOnly = false }: { societyId: string; residentsOnly?: boolean }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -45,7 +45,7 @@ export function InviteMemberForm() {
 
     setPending(true);
     try {
-      const { meta } = await apiFetch<InviteResponse>("/api/admin/users", { method: "POST", body: { name, email, role } });
+      const { meta } = await apiFetch<InviteResponse>(`/api/societies/${societyId}/members`, { method: "POST", body: { name, email, role } });
       setOutcome(
         meta.invite === "SENT"
           ? { tone: "success", text: `Invite sent to ${firstName(name)}.` }
@@ -80,7 +80,11 @@ export function InviteMemberForm() {
           <Input {...control} ref={emailRef} type="email" inputMode="email" autoComplete="off" value={email} maxLength={255} onChange={(e) => setEmail(e.target.value)} />
         )}
       </Field>
-      <SegmentedControl label="Role" name="invite-role" options={ROLE_OPTIONS} value={role} onChange={setRole} />
+      {residentsOnly ? (
+        <p className="text-sm text-fg-muted">They join as a resident.</p>
+      ) : (
+        <SegmentedControl label="Role" name="invite-role" options={ROLE_OPTIONS} value={role} onChange={setRole} />
+      )}
       <Button type="submit" size="lg" fullWidth loading={pending} loadingText="Sending…">
         Send invite
       </Button>

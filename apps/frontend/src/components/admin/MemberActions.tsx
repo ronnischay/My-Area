@@ -19,9 +19,9 @@ type Message = { tone: "success" | "warning" | "error"; text: string } | null;
 
 /**
  * One action per row (UI_UX_GUIDELINES §8 Members): Resend for invited, Enable for disabled,
- * Manage (role + disable) for active. Never rendered for the admin's own row or other admins.
+ * Manage (role + disable) for active. Managers only ever get Resend (MembersList decides).
  */
-export function MemberActions({ member }: { member: SocietyMember }) {
+export function MemberActions({ societyId, member }: { societyId: string; member: SocietyMember }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirmDisable, setConfirmDisable] = useState(false);
@@ -52,7 +52,7 @@ export function MemberActions({ member }: { member: SocietyMember }) {
 
   const resend = () =>
     run(async () => {
-      const { meta } = await apiFetch<InviteResponse>(`/api/admin/users/${member.id}/invite`, { method: "POST" });
+      const { meta } = await apiFetch<InviteResponse>(`/api/societies/${societyId}/members/${member.id}/invite`, { method: "POST" });
       return meta.invite === "SENT"
         ? { tone: "success", text: `New invite sent to ${name}. The old link no longer works.` }
         : { tone: "warning", text: `A new invite was created for ${name}, but the email could not be sent. Try again later.` };
@@ -60,7 +60,7 @@ export function MemberActions({ member }: { member: SocietyMember }) {
 
   const update = (patch: { role?: MemberRole; disabled?: boolean }, done: string) =>
     run(async () => {
-      await apiFetch(`/api/admin/users/${member.id}`, { method: "PATCH", body: patch });
+      await apiFetch(`/api/societies/${societyId}/members/${member.id}`, { method: "PATCH", body: patch });
       close();
       return { tone: "success", text: done };
     });

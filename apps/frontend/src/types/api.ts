@@ -15,7 +15,7 @@ export type ApiErrorCode =
   | "ALREADY_VOTED"
   | "VOTING_CLOSED"
   | "EMAIL_TAKEN"
-  | "SOCIETY_ALREADY_EXISTS"
+  | "ALREADY_IN_SOCIETY"
   | "USER_NOT_INVITED"
   | "INVITE_INVALID"
   | "FILE_TOO_LARGE"
@@ -70,6 +70,12 @@ export interface Society {
   createdAt: string;
 }
 
+/** Admin society list item (GET /api/societies). Counts include invited and disabled members. */
+export interface SocietySummary extends Society {
+  managerCount: number;
+  residentCount: number;
+}
+
 /** GET /api/auth/me, and the body of a successful login or invite acceptance. */
 export interface CurrentUser {
   id: string;
@@ -89,7 +95,7 @@ export interface InviteDetails {
   expiresAt: string;
 }
 
-/** Admin member list item (GET /api/admin/users). */
+/** Member list item (GET /api/societies/:id/members). */
 export interface SocietyMember {
   id: string;
   name: string;
