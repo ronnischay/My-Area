@@ -21,7 +21,7 @@ flowchart LR
 
     DB[("PostgreSQL 17<br/>Drizzle ORM")]
     Disk[("Photo files<br/>UPLOAD_DIR")]
-    SMTP["SMTP server"]
+    SMTP["Email: SMTP server<br/>or Brevo API"]
     Gemini["Google Gemini<br/>(optional)"]
 
     Browser -- "pages" --> Pages
@@ -135,7 +135,7 @@ sequenceDiagram
 
 | Provider | Implementations | Notes |
 |---|---|---|
-| Email | SMTP (nodemailer), console | Console prints emails to the log for local development |
+| Email | SMTP (nodemailer), Brevo (HTTPS API), console | Brevo is for hosts that block SMTP ports; console prints emails to the log for local development |
 | Photo storage | local disk (`UPLOAD_DIR`) | Files are named by the photo's id; served only through the API |
 | AI suggestions | Google Gemini (REST) | Optional; off without `GEMINI_API_KEY` |
 

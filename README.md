@@ -61,8 +61,8 @@ All settings are in `apps/backend/.env`; `apps/backend/.env.example` lists each 
 | Setting | Purpose |
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection (required) |
-| `EMAIL_PROVIDER` | `console` (default): emails, including invite links, are printed in the backend log. `smtp`: real email, with `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` |
-| `EMAIL_FROM`, `APP_URL` | Sender address, and the site address used in email links |
+| `EMAIL_PROVIDER` | `console` (default): emails, including invite links, are printed in the backend log. `smtp`: real email, with `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`. `brevo`: real email through Brevo's HTTPS API with `BREVO_API_KEY`, for hosts that block SMTP (such as Render's free plan) |
+| `EMAIL_FROM`, `APP_URL` | Sender address (for Brevo, a sender verified in Brevo), and the site address used in email links |
 | `UPLOAD_DIR` | Where photos are stored (default `apps/backend/uploads`) |
 | `GEMINI_API_KEY` | Turns on AI autofill (optional) |
 
