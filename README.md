@@ -1,113 +1,83 @@
 # MyArea
 
-An admin creates residential societies and invites each one's managers and residents; the admin belongs to none of them. Members sign in, report neighbourhood problems (a photo, category and human-readable location), and managers review and resolve them. This is a four-day MVP built as an npm Workspaces monorepo: **Next.js** frontend, **Express** backend and **PostgreSQL via Drizzle ORM**.
+MyArea is a neighbourhood issue-reporting app for residential societies. Residents report problems with a photo, and the society's managers track them until they're fixed.
 
-> **Status:** Phase 2 complete (2026-10-28): PostgreSQL + Drizzle, login/sessions, invite-only membership, society setup and member management (backend API, tested). Next is Phase 3 (society-scoped reports API). The UI ("Courtyard" design, light default + dark toggle) comes in Phase 6. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
-> Items marked *(Phase N)* don't exist yet. Everything else was verified on 2026-10-28.
+Built with **Next.js** (frontend), **Express** (backend) and **PostgreSQL** with Drizzle ORM, in an npm Workspaces monorepo. See [Architecture.md](Architecture.md) for how the project is put together and [Database.md](Database.md) for the tables and how they connect.
 
-## Stack
-| Layer | Choice |
-|---|---|
-| Monorepo | npm Workspaces (`apps/frontend`, `apps/backend`), no Turborepo, no shared package yet |
-| Frontend | Next.js 16 (App Router, Cache Components) · React 19 · TypeScript 5.9 · Tailwind CSS v4 |
-| Backend | Express 5 · TypeScript 5.9 (ESM) · Zod 4 · helmet · cors |
-| Database | PostgreSQL 17 · Drizzle ORM 0.45 (`drizzle-orm`, `pg`) · `drizzle-kit` 0.31 migrations |
-| Auth | Email + password (scrypt), DB sessions in an httpOnly cookie, roles Admin/Manager/Resident, invite-only |
-| Media | Report photos on the server's disk (`UPLOAD_DIR`): checked, turned upright, resized to ≤ 2000 px and saved as JPEG without metadata (sharp), served only to the society's members |
-| Email | SMTP via nodemailer (console sender for local dev): invites, and a new-report email to the society's managers, sent after the response |
-| Design | "Courtyard": Bricolage Grotesque + Figtree, brand green `#07ab12` (`#057a0d` for white-text buttons/links), light default + dark toggle |
-| Tests | Vitest 5 · React Testing Library · Supertest |
+## Features
+- **Roles:** an **Admin** creates societies and invites people to them, **Managers** handle a society's reports, and **Residents** report issues.
+- **Invite-only sign-in:** people join by an email invite and set their own password. Each person belongs to one society.
+- **Societies:** admins create and edit any number of societies and manage each one's members (invite, change role, disable). Managers can invite residents to their own society.
+- **Reports:** title, category, location, description and a photo. Photos are resized, turned upright and stripped of location data.
+- **AI autofill (optional):** fills in the title, category and description from the photo using Google Gemini.
+- **Thumbs-up:** residents back each other's open reports.
+- **Management:** a queue with status counts, status changes with notes (Open → In progress → Resolved / Rejected), a timeline everyone can see, and photos showing the fix.
+- **Email:** invites, and a new-report email to the society's managers.
+- **Responsive, light and dark themes**, and usable with a keyboard.
 
-## Repository layout
-```text
-apps/frontend/   Next.js app   → src/app, src/components/{ui,layout}, src/lib, src/types
-apps/backend/    Express API   → src/app.ts, src/server.ts, src/config, src/middleware, src/modules/<feature>, src/lib
-docs/            Product, architecture, DB, API, UI/UX, feature docs, plan, progress
-```
-Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-
-## Prerequisites
-- **Node.js 24** (pinned in `.nvmrc`): `nvm install 24 && nvm use`. npm 11 ships with it.
-- **PostgreSQL 17** via Homebrew, with two databases:
-  ```bash
-  brew install postgresql@17 && brew services start postgresql@17
-  createdb myarea_dev && createdb myarea_test
-  ```
-  `myarea_dev` is your working data. `myarea_test` is only for `npm run test:integration`, which empties its tables on every run.
-- SMTP credentials for real email (optional locally: `EMAIL_PROVIDER=console` prints invite emails, with their links, to the backend log), backend only.
+## Requirements
+- **Node.js 24** (`nvm install 24 && nvm use`)
+- **PostgreSQL 17**
 
 ## Setup
 ```bash
-nvm use                                                   # Node 24
-npm install                                               # from repo root; one lockfile for all workspaces
-cp apps/backend/.env.example apps/backend/.env            # then set DATABASE_URL / DATABASE_URL_TEST (your macOS user name)
-cp apps/frontend/.env.example apps/frontend/.env.local    # API_BASE_URL (server-only)
-npm run db:migrate -w backend                             # create the tables in myarea_dev
-DATABASE_URL=postgres://$USER@localhost:5432/myarea_test npm run db:migrate -w backend   # and in the test DB
-npm run user:create-admin -w backend -- --email you@example.com --name "Your Name"     # asks for a password
-npm run db:seed -w backend                                # optional demo data; set SEED_PASSWORD in apps/backend/.env first
-npm run dev                                               # backend http://localhost:4000, frontend http://localhost:3000
+# 1. Install
+nvm use
+npm install
+
+# 2. Databases
+createdb myarea_dev
+createdb myarea_test          # only for the integration tests
+
+# 3. Environment
+cp apps/backend/.env.example apps/backend/.env
+cp apps/frontend/.env.example apps/frontend/.env.local
+#    In apps/backend/.env set DATABASE_URL and DATABASE_URL_TEST to your Postgres user.
+
+# 4. Tables
+npm run db:migrate -w backend
+
+# 5. Start
+npm run dev                   # frontend http://localhost:3000, backend http://localhost:4000
 ```
-Check it's working: `curl localhost:4000/health` returns `{"status":"ok"}`, and http://localhost:3000 shows the home page.
-The backend refuses to start without `DATABASE_URL`. All other variables have local defaults; see `apps/backend/.env.example`.
 
-Open http://localhost:3000 and sign in. An admin lands on **Societies** (`/admin/societies`): create a society, open it, invite its managers and residents, and edit its details. Admins have no reports. Managers can invite residents to their own society from **Members** (`/members`). A person belongs to one society only: inviting someone who is already in another society is refused. The API is described in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md). With `EMAIL_PROVIDER=console`, the invite link appears in the backend log. Reports: `POST /api/reports` (multipart: `title`, `description`, `category`, `locationText` and one `photo`, JPEG/PNG/WebP up to 5 MB), `GET /api/reports`, `GET /api/reports/:id`; photos are served at `GET /api/media/:id` to signed-in members of the report's society. Managers change a report's status (`PATCH /api/reports/:id/status`, with a timeline everyone can see), add a resolution photo, and see counts at `/management`.
+## Admin account
+Create the admin, then enter `@dmin@1234` when it asks for the password (passwords need at least 10 characters):
+```bash
+npm run user:create-admin -w backend -- --email admin@myarea.local --name "Admin"
+```
+Sign in at http://localhost:3000 with `admin@myarea.local` / `@dmin@1234`. You land on **Societies**: create a society, then invite its managers and residents. Change this password before using the app anywhere other than your own machine.
 
-For demo data, run `npm run db:seed -w backend`. It adds an admin (`asha.rao@greenpark.example`, in no society) and the society "Green Park Residency" with a manager (`rohit.sharma@greenpark.example`), two residents (`meera.iyer@…`, `farhan.qureshi@…`) and 10 reports. All four sign in with the `SEED_PASSWORD` from `apps/backend/.env`. Running it again changes nothing.
+## Demo data (optional)
+Set `SEED_PASSWORD` in `apps/backend/.env` (at least 10 characters), then run:
+```bash
+npm run db:seed -w backend
+```
+This adds an admin (`asha.rao@greenpark.example`) and a society, "Green Park Residency", with a manager (`rohit.sharma@greenpark.example`), two residents (`meera.iyer@greenpark.example`, `farhan.qureshi@greenpark.example`) and 10 reports. All of them sign in with `SEED_PASSWORD`. Running it again changes nothing.
 
-## Scripts
-Run from the repo root.
+## Configuration
+All settings are in `apps/backend/.env`; `apps/backend/.env.example` lists each one.
+
+| Setting | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection (required) |
+| `EMAIL_PROVIDER` | `console` (default): emails, including invite links, are printed in the backend log. `smtp`: real email, with `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` |
+| `EMAIL_FROM`, `APP_URL` | Sender address, and the site address used in email links |
+| `UPLOAD_DIR` | Where photos are stored (default `apps/backend/uploads`) |
+| `GEMINI_API_KEY` | Turns on AI autofill (optional) |
+
+Secrets stay in the backend `.env`, which git ignores. The frontend needs only `API_BASE_URL` (default `http://localhost:4000`).
+
+## Commands
+Run these from the repo root.
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Backend (`tsx watch`) and frontend (`next dev`) together via `concurrently` |
-| `npm run dev:backend` / `npm run dev:frontend` | One app only |
-| `npm run check` | **Full gate**: typecheck, lint, test and build across both workspaces |
-| `npm run test` / `typecheck` / `lint` / `build` | Each step across both workspaces |
-| `npm run <script> -w backend` or `-w frontend` | One workspace: `test`, `test:watch`, `test:coverage`, `typecheck`, `lint`, `build`, `start` |
-| `npm run db:generate -w backend -- --name <change>` | Generate a SQL migration from the Drizzle schema (read the SQL before applying) |
-| `npm run db:migrate -w backend` | Apply migrations to `DATABASE_URL` |
-| `npm run db:check` / `db:studio` `-w backend` | Migration consistency / local DB browser |
-| `npm run db:seed -w backend` | Demo admin, society, members and reports; needs `SEED_PASSWORD`; safe to re-run; refuses to run in production |
-| `npm run user:create-admin -w backend -- --email <e> --name "<n>"` | Create an admin, the only way to create one (non-interactive: set `ADMIN_PASSWORD`) |
-| `npm run test:integration -w backend` | Repository tests against `DATABASE_URL_TEST` (must be a `*_test` database) |
-
-Production-style run: `npm run build` then `npm run start -w backend` and `npm run start -w frontend`.
-
-## Environment
-Each app has its own committed `.env.example` with placeholders: [`apps/backend/.env.example`](apps/backend/.env.example) and [`apps/frontend/.env.example`](apps/frontend/.env.example). Variables for later phases are listed commented out. What each variable does is in [`docs/ARCHITECTURE.md §7`](docs/ARCHITECTURE.md#7-environment-variables).
-
-- Secrets are **backend-only** and live in the git-ignored `apps/backend/.env` (`DATABASE_URL`, `SMTP_USER`, `SMTP_PASS`). Defaults in code are public local-dev values only. The frontend has no `NEXT_PUBLIC_` variables: the browser calls same-origin `/api/*`, which Next.js rewrites to `API_BASE_URL` (server-only, default `http://localhost:4000`). Restart `next dev` after changing it.
-- AI suggestions (optional): `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`, default `gemini-3.5-flash-lite`) in `apps/backend/.env` turn on the "Autofill with AI" button on the report form: it fills the title, category and description from the photo (and any text). The photo (with its location data removed) and the text are sent to Google only when the resident taps it. Without a key the button is hidden.
-- Demo data: `SEED_PASSWORD` (backend `.env` only) is the password for every account `db:seed` creates.
-- Photos: `UPLOAD_DIR` (default `uploads`, i.e. `apps/backend/uploads/`, git-ignored). Back it up together with the database: a report's photo exists only there.
-- Email: `EMAIL_PROVIDER=console` (default; refused in production) or `smtp` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, plus `EMAIL_FROM` and `APP_URL` (used in invite links).
-- The backend validates its environment at startup and exits with a list of the invalid variables (names only, never values).
-
-## Documentation
-| Doc | Purpose |
-|---|---|
-| [`AGENT_START_HERE.md`](AGENT_START_HERE.md) | Master prompt and work protocol for coding agents |
-| [`docs/PRODUCT_REQUIREMENTS.md`](docs/PRODUCT_REQUIREMENTS.md) | Scope, users, acceptance criteria |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Stack, structure, layering, data flow, env |
-| [`docs/DATABASE.md`](docs/DATABASE.md) | Tables, enums, relations, migration workflow and log |
-| [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) | Endpoints, payloads, error codes |
-| [`docs/UI_UX_GUIDELINES.md`](docs/UI_UX_GUIDELINES.md) | Design tokens, responsive and a11y rules, screen specs |
-| [`docs/features/`](docs/features/README.md) | How each feature is built: tables, migrations, files, tests |
-| [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Phased plan with gates |
-| [`docs/TESTING_STRATEGY.md`](docs/TESTING_STRATEGY.md) | Test levels and cases |
-| [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md) | Quality gates |
-| [`docs/DOCS_MAINTENANCE.md`](docs/DOCS_MAINTENANCE.md) | Which docs to update for each change |
-| [`docs/DECISIONS.md`](docs/DECISIONS.md) | Decision log |
-| [`docs/PROGRESS.md`](docs/PROGRESS.md) | Phase checklist and verified results |
-
-**Keep docs current:** any change to features, schema, endpoints, setup or env updates the matching docs in the same change. See [`docs/DOCS_MAINTENANCE.md`](docs/DOCS_MAINTENANCE.md).
-
-## Known limitations (MVP)
-- No map, geocoding or coordinates. Location is free text.
-- Every admin manages every society (no per-admin ownership); a manager or resident belongs to exactly one society; members join by invite only; no forgot/change-password yet (see `docs/features/auth.md`).
-- Login rate limiting is in memory (per process, resets on restart).
-- Resolved and Rejected are final; the reporter isn't emailed when the status changes.
-- The theme preference is saved per device, not per account.
-- Photos live on one server's disk (no CDN, no multi-server sharing); seeded demo reports have no photo.
-- The new-report email is attempted once, after the response is sent. A failure is only logged (no retry, no record in the database); managers still see every report in the app.
+| `npm run dev` | Start the frontend and backend |
+| `npm run check` | Typecheck, lint, test and build everything |
+| `npm run test` | Unit and API tests |
+| `npm run test:integration -w backend` | Database tests (uses `myarea_test`) |
+| `npm run db:migrate -w backend` | Apply database migrations |
+| `npm run db:seed -w backend` | Add demo data |
+| `npm run user:create-admin -w backend -- --email <email> --name "<name>"` | Create an admin |
+| `npm run build`, then `npm run start -w backend` and `npm run start -w frontend` | Production build and run |
