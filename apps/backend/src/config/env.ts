@@ -7,7 +7,7 @@ import { z } from "zod";
  */
 
 const LOG_LEVELS = ["debug", "info", "warn", "error", "silent"] as const;
-const EMAIL_PROVIDERS = ["smtp", "console"] as const;
+const EMAIL_PROVIDERS = ["smtp", "brevo", "console"] as const;
 
 const booleanString = z.enum(["true", "false"]).transform((value) => value === "true");
 
@@ -43,6 +43,8 @@ const EnvSchema = z
     SMTP_SECURE: booleanString.default(false),
     SMTP_USER: z.string().min(1).optional(),
     SMTP_PASS: z.string().min(1).optional(),
+    // Brevo's HTTPS email API: for hosts that block SMTP ports (e.g. Render's free plan).
+    BREVO_API_KEY: z.string().trim().min(1).optional(),
 
     // Report photos are stored on this server's disk (D021). Relative paths resolve from the working directory.
     UPLOAD_DIR: z.string().trim().min(1).default("uploads"),
@@ -62,6 +64,9 @@ const EnvSchema = z
     if (env.EMAIL_PROVIDER === "smtp" && !env.SMTP_HOST) {
       ctx.addIssue({ code: "custom", path: ["SMTP_HOST"], message: "required when EMAIL_PROVIDER=smtp" });
     }
+    if (env.EMAIL_PROVIDER === "brevo" && !env.BREVO_API_KEY) {
+      ctx.addIssue({ code: "custom", path: ["BREVO_API_KEY"], message: "required when EMAIL_PROVIDER=brevo" });
+    }
     if (Boolean(env.SMTP_USER) !== Boolean(env.SMTP_PASS)) {
       ctx.addIssue({ code: "custom", path: ["SMTP_USER"], message: "SMTP_USER and SMTP_PASS must be set together" });
     }
@@ -78,7 +83,8 @@ export interface SmtpConfig {
 
 export type EmailConfig =
   | { provider: "console"; from: string }
-  | { provider: "smtp"; from: string; smtp: SmtpConfig };
+  | { provider: "smtp"; from: string; smtp: SmtpConfig }
+  | { provider: "brevo"; from: string; apiKey: string };
 
 /** Where uploaded photos are kept. Only local disk for now; Cloudinary may be added later (D021). */
 export interface MediaConfig {
@@ -120,7 +126,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
 
   const env = result.data;
   const email: EmailConfig =
-    env.EMAIL_PROVIDER === "smtp" && env.SMTP_HOST
+    env.EMAIL_PROVIDER === "brevo" && env.BREVO_API_KEY
+      ? { provider: "brevo", from: env.EMAIL_FROM, apiKey: env.BREVO_API_KEY }
+      : env.EMAIL_PROVIDER === "smtp" && env.SMTP_HOST
       ? {
           provider: "smtp",
           from: env.EMAIL_FROM,

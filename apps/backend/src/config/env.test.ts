@@ -77,8 +77,20 @@ describe("loadConfig", () => {
     });
   });
 
+  it("builds Brevo settings, allowed in production", () => {
+    const config = loadConfig({
+      DATABASE_URL,
+      NODE_ENV: "production",
+      EMAIL_PROVIDER: "brevo",
+      BREVO_API_KEY: "xkeysib-test",
+      EMAIL_FROM: "MyArea <myarea.alerts@gmail.com>",
+    });
+    expect(config.email).toEqual({ provider: "brevo", from: "MyArea <myarea.alerts@gmail.com>", apiKey: "xkeysib-test" });
+  });
+
   it("rejects incomplete or unsafe email settings", () => {
     expect(configError({ DATABASE_URL, EMAIL_PROVIDER: "smtp" }).message).toMatch(/SMTP_HOST/);
+    expect(configError({ DATABASE_URL, EMAIL_PROVIDER: "brevo" }).message).toMatch(/BREVO_API_KEY: required when EMAIL_PROVIDER=brevo/);
     expect(configError({ DATABASE_URL, NODE_ENV: "production" }).message).toMatch(/EMAIL_PROVIDER/);
     expect(
       configError({ DATABASE_URL, EMAIL_PROVIDER: "smtp", SMTP_HOST: "localhost", SMTP_USER: "only-user" }).message,
