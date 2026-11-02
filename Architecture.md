@@ -86,7 +86,7 @@ Services receive their repositories and providers as arguments. Tests can theref
 
 | Module | Endpoints | Who |
 |---|---|---|
-| `auth` | `/api/auth`: login, logout, current user, invite lookup and accept | everyone |
+| `auth` | `/api/auth`: login, logout, current user, invite lookup and accept, forgot password (request, lookup, confirm) | everyone |
 | `societies` | `/api/societies`: list, create, view, edit | admin |
 | `users` (members) | `/api/societies/:societyId/members`: list, invite, resend, change role, disable | admin (any society), manager (own society, residents only) |
 | `reports` | `/api/reports`: create with photo, list, detail, status change, resolution photo, thumbs-up | society members; status changes by managers |
@@ -105,7 +105,8 @@ flowchart LR
     I -. error .-> J[error handler<br/>one JSON error shape]
 ```
 
-- **Sessions:** a random token in an httpOnly cookie. Only its SHA-256 hash is stored. Sessions last 7 days.
+- **Sessions:** a random token in an httpOnly cookie. Only its SHA-256 hash is stored. Sessions last 7 days. A timer in the backend deletes expired sessions at startup and every 6 hours.
+- **Forgot password:** the emailed link is a signed token (HMAC-SHA256 with `PASSWORD_RESET_SECRET`) holding the user id, an expiry one hour ahead and a fingerprint of the current password hash, so it needs no table and stops working once the password changes. Resetting deletes all the user's sessions and starts a new one.
 - **Roles:** `ADMIN` runs societies from outside them (no society); `MANAGER` and `RESIDENT` each belong to one society.
 - **Society scoping:** every query for reports, photos or members is filtered by the society. Something from another society answers 404, exactly like something that doesn't exist.
 - **Errors:** one shape, `{ error: { code, message, details?, requestId } }`.
@@ -142,7 +143,7 @@ sequenceDiagram
 ## Frontend
 
 - **Next.js App Router** with Cache Components. Pages are server components that fetch from the API using the visitor's cookie (`lib/server/backend.ts`). Forms and buttons are client components that call `/api/*` (`lib/api-client.ts`).
-- **Route groups:** `(auth)` holds `/login` and `/invite`, and `(app)` holds the signed-in pages.
+- **Route groups:** `(auth)` holds `/login`, `/invite`, `/forgot-password` and `/reset-password`, and `(app)` holds the signed-in pages.
 - **Access:** `proxy.ts` sends visitors without a session cookie to `/login`. Each page then asks the API who the user is (`requireUser`, `requireMember`, `requireRole`, `requireAdmin`) and redirects if the user may not see it.
 
 | Who | Pages |

@@ -99,7 +99,7 @@ erDiagram
 |---|---|---|
 | `societies` | A residential society: name and address | its members (`users`) and its `reports` |
 | `users` | Everyone who can sign in, with a role and a status | a society (except admins), the person who invited them, their sessions, invite, reports, photos, status changes and votes |
-| `sessions` | Signed-in browsers. Only a hash of the cookie is stored | one user; deleted with the user |
+| `sessions` | Signed-in browsers. Only a hash of the cookie is stored. Expired rows are deleted by the backend at startup and every 6 hours | one user; deleted with the user |
 | `user_invites` | The pending invite link for a new member (at most one per user) | one user; deleted when accepted, replaced when resent |
 | `reports` | An issue reported in a society | the society, and the reporter (who must be in that society) |
 | `report_media` | Where each photo is stored. The file itself is on disk | a report and the person who uploaded it |

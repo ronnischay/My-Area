@@ -7,6 +7,7 @@ Built with **Next.js** (frontend), **Express** (backend) and **PostgreSQL** with
 ## Features
 - **Roles:** an **Admin** creates societies and invites people to them, **Managers** handle a society's reports, and **Residents** report issues.
 - **Invite-only sign-in:** people join by an email invite and set their own password. Each person belongs to one society.
+- **Forgot password:** a one-hour, single-use email link to choose a new password; resetting signs out every other device.
 - **Societies:** admins create and edit any number of societies and manage each one's members (invite, change role, disable). Managers can invite residents to their own society.
 - **Reports:** title, category, location, description and a photo. Photos are resized, turned upright and stripped of location data.
 - **AI autofill (optional):** fills in the title, category and description from the photo using Google Gemini.
@@ -64,6 +65,7 @@ All settings are in `apps/backend/.env`; `apps/backend/.env.example` lists each 
 | `EMAIL_PROVIDER` | `console` (default): emails, including invite links, are printed in the backend log. `smtp`: real email, with `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`. `brevo`: real email through Brevo's HTTPS API with `BREVO_API_KEY`, for hosts that block SMTP (such as Render's free plan) |
 | `EMAIL_FROM`, `APP_URL` | Sender address (for Brevo, a sender verified in Brevo), and the site address used in email links |
 | `UPLOAD_DIR` | Where photos are stored (default `apps/backend/uploads`) |
+| `PASSWORD_RESET_SECRET` | Signs forgot-password links; at least 32 random characters (`openssl rand -base64 48`). Required in production |
 | `GEMINI_API_KEY` | Turns on AI autofill (optional) |
 
 Secrets stay in the backend `.env`, which git ignores. The frontend needs only `API_BASE_URL` (default `http://localhost:4000`).
