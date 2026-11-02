@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { type FormEvent, useRef, useState } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -90,6 +91,9 @@ export function LoginForm({ next }: { next?: string }) {
           </div>
         )}
       </Field>
+      <Link href="/forgot-password" className="-mt-2 inline-flex min-h-11 items-center self-end text-sm font-semibold text-primary">
+        Forgot password?
+      </Link>
       <Button type="submit" size="lg" fullWidth loading={pending} loadingText="Signing in…">
         Sign in
       </Button>

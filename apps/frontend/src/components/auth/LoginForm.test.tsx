@@ -18,6 +18,11 @@ afterEach(() => {
 });
 
 describe("LoginForm", () => {
+  it("links to forgot password", () => {
+    render(<LoginForm />);
+    expect(screen.getByRole("link", { name: "Forgot password?" })).toHaveAttribute("href", "/forgot-password");
+  });
+
   it("asks for both fields before calling the API", async () => {
     const fetchMock = respond(200, {});
     vi.stubGlobal("fetch", fetchMock);

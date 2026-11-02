@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 /** Pages anyone can open. Everything else needs a session. */
-const PUBLIC_PATHS = ["/login", "/invite"];
+const PUBLIC_PATHS = ["/login", "/invite", "/forgot-password", "/reset-password"];
 
 /**
  * Optimistic check only (docs: "Optimistic checks with Proxy"): no session cookie → /login. Whether the
