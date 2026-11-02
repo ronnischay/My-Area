@@ -84,4 +84,43 @@ describe.skipIf(!testDatabaseUrl)("auth repository (PostgreSQL)", () => {
     await db.delete(users).where(eq(users.id, user.id));
     expect(await db.select().from(sessions)).toHaveLength(0);
   });
+
+  it("resets a password only while the expected hash still matches, replacing every session", async () => {
+    const repo = createAuthRepository(db);
+    const society = await insertSociety(db);
+    const user = await insertUser(db, { email: "meera@example.com", role: "RESIDENT", societyId: society.id, passwordHash: "scrypt$old" });
+    const other = await insertUser(db, { email: "farhan@example.com", role: "RESIDENT", societyId: society.id });
+    await repo.startSession({ userId: user.id, session: { tokenHash: hash("a"), expiresAt: hours(5) }, now });
+    await repo.startSession({ userId: user.id, session: { tokenHash: hash("b"), expiresAt: hours(5) }, now });
+    await repo.startSession({ userId: other.id, session: { tokenHash: hash("c"), expiresAt: hours(5) }, now });
+    const reset = (expectedPasswordHash: string, token: string) =>
+      repo.resetPassword({ userId: user.id, expectedPasswordHash, passwordHash: "scrypt$new", session: { tokenHash: hash(token), expiresAt: hours(9) }, now: hours(1) });
+
+    expect(await reset("scrypt$wrong", "d")).toBe(false);
+    expect(await reset("scrypt$old", "d")).toBe(true);
+    expect(await reset("scrypt$old", "e")).toBe(false);
+
+    const [row] = await db.select({ passwordHash: users.passwordHash, lastLoginAt: users.lastLoginAt }).from(users).where(eq(users.id, user.id));
+    expect(row).toEqual({ passwordHash: "scrypt$new", lastLoginAt: hours(1) });
+    const left = await db.select({ userId: sessions.userId, tokenHash: sessions.tokenHash }).from(sessions);
+    expect(left.sort((x, y) => x.tokenHash.localeCompare(y.tokenHash))).toEqual([
+      { userId: other.id, tokenHash: hash("c") },
+      { userId: user.id, tokenHash: hash("d") },
+    ]);
+    expect(await repo.findResetAccountByEmail("meera@example.com")).toMatchObject({ id: user.id, name: expect.any(String), passwordHash: "scrypt$new" });
+  });
+
+  it("deletes only expired sessions, across all users", async () => {
+    const repo = createAuthRepository(db);
+    const society = await insertSociety(db);
+    const user = await insertUser(db, { email: "meera@example.com", role: "RESIDENT", societyId: society.id });
+    const other = await insertUser(db, { email: "farhan@example.com", role: "RESIDENT", societyId: society.id });
+    await repo.startSession({ userId: user.id, session: { tokenHash: hash("a"), expiresAt: hours(1) }, now });
+    await repo.startSession({ userId: other.id, session: { tokenHash: hash("b"), expiresAt: hours(2) }, now });
+    await repo.startSession({ userId: other.id, session: { tokenHash: hash("c"), expiresAt: hours(48) }, now });
+
+    expect(await repo.deleteExpiredSessions(hours(2))).toBe(2);
+    expect(await db.select({ tokenHash: sessions.tokenHash }).from(sessions)).toEqual([{ tokenHash: hash("c") }]);
+    expect(await repo.deleteExpiredSessions(hours(2))).toBe(0);
+  });
 });

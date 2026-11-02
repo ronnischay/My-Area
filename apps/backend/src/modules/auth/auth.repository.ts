@@ -18,6 +18,15 @@ export interface SessionUser {
   societyId: string | null;
 }
 
+/** What forgot password needs about an account. */
+export interface ResetAccount {
+  id: string;
+  email: string;
+  name: string;
+  status: UserStatus;
+  passwordHash: string | null;
+}
+
 export interface NewSession {
   tokenHash: string;
   expiresAt: Date;
@@ -38,7 +47,19 @@ export interface AuthRepository {
    * delete the invite (single use) and start a session. Returns the user id, or null if the invite is no longer valid.
    */
   acceptInvite(input: { tokenHash: string; passwordHash: string; session: NewSession; now: Date }): Promise<string | null>;
+  findResetAccountByEmail(email: string): Promise<ResetAccount | null>;
+  findResetAccountById(userId: string): Promise<ResetAccount | null>;
+  /**
+   * One transaction: lock the user, and only if they are still ACTIVE with `expectedPasswordHash`
+   * (so a reset link works once), set the new hash, delete ALL their sessions and start this one.
+   * False when the link is no longer valid.
+   */
+  resetPassword(input: { userId: string; expectedPasswordHash: string; passwordHash: string; session: NewSession; now: Date }): Promise<boolean>;
+  /** Deletes every expired session; returns how many. */
+  deleteExpiredSessions(now: Date): Promise<number>;
 }
+
+const resetAccountColumns = { id: users.id, email: users.email, name: users.name, status: users.status, passwordHash: users.passwordHash };
 
 export function createAuthRepository(db: Database): AuthRepository {
   return {
@@ -136,6 +157,38 @@ export function createAuthRepository(db: Database): AuthRepository {
         await tx.insert(sessions).values({ userId: invite.userId, tokenHash: session.tokenHash, expiresAt: session.expiresAt });
         return invite.userId;
       });
+    },
+
+    async findResetAccountByEmail(email) {
+      const [row] = await db.select(resetAccountColumns).from(users).where(eq(users.email, email)).limit(1);
+      return row ?? null;
+    },
+
+    async findResetAccountById(userId) {
+      const [row] = await db.select(resetAccountColumns).from(users).where(eq(users.id, userId)).limit(1);
+      return row ?? null;
+    },
+
+    async resetPassword({ userId, expectedPasswordHash, passwordHash, session, now }) {
+      return db.transaction(async (tx) => {
+        const [user] = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.id, userId), eq(users.status, "ACTIVE"), eq(users.passwordHash, expectedPasswordHash)))
+          .for("update")
+          .limit(1);
+        if (!user) return false;
+
+        await tx.update(users).set({ passwordHash, lastLoginAt: now }).where(eq(users.id, userId));
+        await tx.delete(sessions).where(eq(sessions.userId, userId));
+        await tx.insert(sessions).values({ userId, tokenHash: session.tokenHash, expiresAt: session.expiresAt });
+        return true;
+      });
+    },
+
+    async deleteExpiredSessions(now) {
+      const deleted = await db.delete(sessions).where(lte(sessions.expiresAt, now)).returning({ id: sessions.id });
+      return deleted.length;
     },
   };
 }

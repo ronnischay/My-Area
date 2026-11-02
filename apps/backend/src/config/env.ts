@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { z } from "zod";
 
@@ -43,6 +44,9 @@ const EnvSchema = z
     SMTP_SECURE: booleanString.default(false),
     SMTP_USER: z.string().min(1).optional(),
     SMTP_PASS: z.string().min(1).optional(),
+    // Signs forgot-password links (no table, D030). Required in production; a random one per run otherwise.
+    PASSWORD_RESET_SECRET: z.string().min(32, "must be at least 32 characters").optional(),
+
     // Brevo's HTTPS email API: for hosts that block SMTP ports (e.g. Render's free plan).
     BREVO_API_KEY: z.string().trim().min(1).optional(),
 
@@ -63,6 +67,9 @@ const EnvSchema = z
     }
     if (env.EMAIL_PROVIDER === "smtp" && !env.SMTP_HOST) {
       ctx.addIssue({ code: "custom", path: ["SMTP_HOST"], message: "required when EMAIL_PROVIDER=smtp" });
+    }
+    if (env.NODE_ENV === "production" && !env.PASSWORD_RESET_SECRET) {
+      ctx.addIssue({ code: "custom", path: ["PASSWORD_RESET_SECRET"], message: "required in production" });
     }
     if (env.EMAIL_PROVIDER === "brevo" && !env.BREVO_API_KEY) {
       ctx.addIssue({ code: "custom", path: ["BREVO_API_KEY"], message: "required when EMAIL_PROVIDER=brevo" });
@@ -104,6 +111,8 @@ export interface AppConfig {
   databaseUrl: string;
   appUrl: string;
   email: EmailConfig;
+  /** HMAC key for forgot-password links. Outside production a random one per run (links die on restart). */
+  passwordResetSecret: string;
   media: MediaConfig;
   ai: AiConfig;
 }
@@ -149,6 +158,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     databaseUrl: env.DATABASE_URL,
     appUrl: env.APP_URL,
     email,
+    passwordResetSecret: env.PASSWORD_RESET_SECRET ?? randomBytes(32).toString("base64url"),
     media: { storage: "local", uploadDir: resolve(env.UPLOAD_DIR) },
     ai: env.GEMINI_API_KEY ? { provider: "gemini", apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL } : null,
   };

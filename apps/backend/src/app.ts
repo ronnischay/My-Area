@@ -12,11 +12,12 @@ import { requireAuth } from "./middleware/require-auth.js";
 import { requireSameOrigin } from "./middleware/require-same-origin.js";
 import { requestId } from "./middleware/request-id.js";
 import { requestLogger } from "./middleware/request-logger.js";
-import { LOGIN_MAX_FAILURES, LOGIN_WINDOW_MS } from "./modules/auth/auth.constants.js";
+import { LOGIN_MAX_FAILURES, LOGIN_WINDOW_MS, PASSWORD_RESET_MAX_REQUESTS, PASSWORD_RESET_WINDOW_MS } from "./modules/auth/auth.constants.js";
 import type { AuthRepository } from "./modules/auth/auth.repository.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { createAuthService } from "./modules/auth/auth.service.js";
 import { createLoginRateLimiter } from "./modules/auth/login-rate-limiter.js";
+import { createPasswordResetService } from "./modules/auth/password-reset.service.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { managementRouter } from "./modules/management/management.routes.js";
 import type { MediaRepository } from "./modules/media/media.repository.js";
@@ -97,11 +98,22 @@ export function createApp({
     clock,
   });
   const authenticated = requireAuth(authService.resolveSession);
+  const passwordReset = createPasswordResetService({
+    repository: repositories.auth,
+    passwordHasher,
+    emailSender,
+    backgroundTasks,
+    rateLimiter: createLoginRateLimiter({ maxFailures: PASSWORD_RESET_MAX_REQUESTS, windowMs: PASSWORD_RESET_WINDOW_MS }),
+    logger,
+    clock,
+    appUrl: config.appUrl,
+    secret: config.passwordResetSecret,
+  });
 
   app.use(healthRouter());
   app.use(
     "/api/auth",
-    authRouter({ service: authService, requireAuth: authenticated, secureCookies: config.nodeEnv === "production" }),
+    authRouter({ service: authService, passwordReset, requireAuth: authenticated, secureCookies: config.nodeEnv === "production" }),
   );
   const societiesService = createSocietiesService({ repository: repositories.societies });
   // Before /api/societies: that router is admin-only for everything under it, and managers use members.

@@ -20,3 +20,12 @@ export const LoginBodySchema = z.object({
 export const InviteLookupBodySchema = z.object({ token: TokenInput });
 
 export const InviteAcceptBodySchema = z.object({ token: TokenInput, password: NewPasswordInput });
+
+// Forgot password (D030). The signed token is ~170 characters.
+const ResetTokenInput = z.string().min(1, "Reset link is missing").max(500);
+
+export const PasswordResetRequestBodySchema = z.object({ email: EmailInput });
+
+export const PasswordResetLookupBodySchema = z.object({ token: ResetTokenInput });
+
+export const PasswordResetConfirmBodySchema = z.object({ token: ResetTokenInput, password: NewPasswordInput });

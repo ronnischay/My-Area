@@ -3,9 +3,12 @@ import { createApp } from "./app.js";
 import { ConfigError, loadConfig } from "./config/env.js";
 import { createDatabase } from "./db/client.js";
 import { createBackgroundTasks } from "./lib/background-tasks.js";
+import { systemClock } from "./lib/clock.js";
 import { createLogger } from "./lib/logger.js";
 import { createPasswordHasher } from "./lib/password.js";
+import { SESSION_CLEANUP_INTERVAL_MS } from "./modules/auth/auth.constants.js";
 import { createAuthRepository } from "./modules/auth/auth.repository.js";
+import { startSessionCleanup } from "./modules/auth/session-cleanup.js";
 import { createMediaRepository } from "./modules/media/media.repository.js";
 import { createNotificationsRepository } from "./modules/notifications/notifications.repository.js";
 import { createReportsRepository } from "./modules/reports/reports.repository.js";
@@ -32,11 +35,12 @@ try {
 const logger = createLogger({ level: config.logLevel });
 const { db, pool } = createDatabase(config.databaseUrl);
 const backgroundTasks = createBackgroundTasks(logger);
+const authRepository = createAuthRepository(db);
 const app = createApp({
   config,
   logger,
   repositories: {
-    auth: createAuthRepository(db),
+    auth: authRepository,
     media: createMediaRepository(db),
     notifications: createNotificationsRepository(db),
     reports: createReportsRepository(db),
@@ -54,8 +58,16 @@ const server = app.listen(config.port, () => {
   logger.info("backend listening", { port: config.port, nodeEnv: config.nodeEnv });
 });
 
+const sessionCleanup = startSessionCleanup({
+  repository: authRepository,
+  logger,
+  clock: systemClock,
+  intervalMs: SESSION_CLEANUP_INTERVAL_MS,
+});
+
 function shutdown(signal: string) {
   logger.info("shutting down", { signal });
+  sessionCleanup.stop();
   server.close(() => {
     // Let in-flight emails finish (they still read the DB) before closing the pool.
     backgroundTasks

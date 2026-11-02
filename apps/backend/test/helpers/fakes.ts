@@ -170,6 +170,37 @@ export function createFakeAuthRepository(store: InMemoryStore): AuthRepository {
       store.sessions.set(session.tokenHash, { userId: user.id, ...session });
       return user.id;
     },
+
+    async findResetAccountByEmail(email) {
+      const user = [...store.users.values()].find((u) => u.email === email);
+      return user ? { id: user.id, email: user.email, name: user.name, status: user.status, passwordHash: user.passwordHash } : null;
+    },
+
+    async findResetAccountById(userId) {
+      const user = store.users.get(userId);
+      return user ? { id: user.id, email: user.email, name: user.name, status: user.status, passwordHash: user.passwordHash } : null;
+    },
+
+    async resetPassword({ userId, expectedPasswordHash, passwordHash, session, now }) {
+      const user = store.users.get(userId);
+      if (!user || user.status !== "ACTIVE" || user.passwordHash !== expectedPasswordHash) return false;
+      user.passwordHash = passwordHash;
+      user.lastLoginAt = now;
+      for (const [hash, row] of store.sessions) if (row.userId === userId) store.sessions.delete(hash);
+      store.sessions.set(session.tokenHash, { userId, ...session });
+      return true;
+    },
+
+    async deleteExpiredSessions(now) {
+      let deleted = 0;
+      for (const [hash, row] of store.sessions) {
+        if (row.expiresAt <= now) {
+          store.sessions.delete(hash);
+          deleted += 1;
+        }
+      }
+      return deleted;
+    },
   };
 }
 

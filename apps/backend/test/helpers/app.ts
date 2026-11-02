@@ -26,6 +26,7 @@ export const testConfig: AppConfig = {
   databaseUrl: "postgres://test@localhost:5432/unused",
   appUrl: "http://localhost:3000",
   email: { provider: "console", from: "MyArea <no-reply@test.local>" },
+  passwordResetSecret: "test-password-reset-secret-0123456789abcdef",
   // Never written to in HTTP tests; media storage is FakeMediaStorage.
   media: { storage: "local", uploadDir: "/nonexistent/myarea-test-uploads" },
   // AI suggestions use a fake provider in tests (createTestApp option), never Gemini.

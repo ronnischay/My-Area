@@ -24,9 +24,20 @@ describe("loadConfig", () => {
       databaseUrl: DATABASE_URL,
       appUrl: "http://localhost:3000",
       email: { provider: "console", from: "MyArea <no-reply@localhost>" },
+      passwordResetSecret: expect.stringMatching(/^[\w-]{43}$/),
       media: { storage: "local", uploadDir: resolve("uploads") },
       ai: null,
     });
+  });
+
+  it("uses PASSWORD_RESET_SECRET when set, requires it in production, and a random one per run otherwise", () => {
+    const secret = "x".repeat(32);
+    expect(loadConfig({ DATABASE_URL, PASSWORD_RESET_SECRET: secret }).passwordResetSecret).toBe(secret);
+    expect(loadConfig({ DATABASE_URL }).passwordResetSecret).not.toBe(loadConfig({ DATABASE_URL }).passwordResetSecret);
+    expect(configError({ DATABASE_URL, NODE_ENV: "production", EMAIL_PROVIDER: "brevo", BREVO_API_KEY: "k" }).message).toMatch(
+      /PASSWORD_RESET_SECRET: required in production/,
+    );
+    expect(configError({ DATABASE_URL, PASSWORD_RESET_SECRET: "short" }).message).toMatch(/PASSWORD_RESET_SECRET: must be at least 32 characters/);
   });
 
   it("turns AI suggestions on only with a Gemini key, and checks the model id", () => {
@@ -84,6 +95,7 @@ describe("loadConfig", () => {
       EMAIL_PROVIDER: "brevo",
       BREVO_API_KEY: "xkeysib-test",
       EMAIL_FROM: "MyArea <myarea.alerts@gmail.com>",
+      PASSWORD_RESET_SECRET: "y".repeat(32),
     });
     expect(config.email).toEqual({ provider: "brevo", from: "MyArea <myarea.alerts@gmail.com>", apiKey: "xkeysib-test" });
   });
